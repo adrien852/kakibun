@@ -38,21 +38,58 @@ const Bridge = (() => {
     info = { date: parsed.date, n: parsed.learned.length, source, counts: parsed.counts };
   }
 
+  /* Diff what Kakikana knows now against what Kakibun saw last time.
+   * The very first link is NOT a debut — we'd dump 50 "new" kanji at once. */
+  function diffNew(state) {
+    const now = [...learned].sort();
+    if (!state.kanjiSeen) { state.kanjiSeen = now; return []; }
+    const before = new Set(state.kanjiSeen);
+    const fresh = now.filter(ch => !before.has(ch));
+    if (fresh.length) {
+      const pending = new Set(state.newKanji || []);
+      fresh.forEach(ch => pending.add(ch));
+      state.newKanji = [...pending];
+    }
+    state.kanjiSeen = now;
+    return fresh;
+  }
+
   function load(state) {
     // 1. live localStorage from Kakikana (same origin)
     try {
       const raw = localStorage.getItem(KAKIKANA_KEY);
       if (raw) {
-        const parsed = parseExport(JSON.parse(raw));
-        if (parsed) { apply(parsed, "auto"); state.kakikana = { raw: JSON.parse(raw) }; return; }
+        const obj = JSON.parse(raw);
+        const parsed = parseExport(obj);
+        if (parsed) { apply(parsed, "auto"); state.kakikana = { raw: obj }; diffNew(state); return; }
       }
     } catch (e) { /* ignore */ }
     // 2. previously imported copy stored in Kakibun's own state
     if (state.kakikana && state.kakikana.raw) {
       const parsed = parseExport(state.kakikana.raw);
-      if (parsed) { apply(parsed, "stored"); return; }
+      if (parsed) { apply(parsed, "stored"); diffNew(state); return; }
     }
     info = null;
+  }
+
+  /* Re-read Kakikana without a relaunch (called on focus / tab visible).
+   * Returns the newly learned kanji, or [] when nothing changed. */
+  function refresh(state) {
+    const before = learned.size;
+    let fresh = [];
+    try {
+      const raw = localStorage.getItem(KAKIKANA_KEY);
+      if (raw) {
+        const obj = JSON.parse(raw);
+        const parsed = parseExport(obj);
+        if (parsed) {
+          apply(parsed, "auto");
+          state.kakikana = { raw: obj };
+          fresh = diffNew(state);
+        }
+      }
+    } catch (e) { /* ignore */ }
+    return { fresh, changed: fresh.length > 0 || learned.size !== before };
   }
 
   function importJSON(obj, state) {
@@ -60,6 +97,7 @@ const Bridge = (() => {
     if (!parsed) return false;
     apply(parsed, "file");
     state.kakikana = { raw: obj };
+    diffNew(state);
     return true;
   }
 
@@ -92,7 +130,7 @@ const Bridge = (() => {
     });
   }
 
-  return { load, importJSON, display, knowsAll, hasInfo, learnedCount, importInfo,
+  return { load, refresh, importJSON, display, knowsAll, hasInfo, learnedCount, importInfo,
            isLearned: (ch) => learned.has(ch), KAKIKANA_KEY };
 })();
 if (typeof module !== "undefined") module.exports = { Bridge };

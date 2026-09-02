@@ -255,4 +255,80 @@ ruby rt{font-size:.55em;color:var(--ink2)}
 .nav-btn.on{color:var(--red)}
 .nav-ico{font-size:1.25rem}
 
+/* ============ v1.1 ============ */
+
+/* new-kanji card */
+.newkanji{background:linear-gradient(135deg,#fff8e8,#fdf1d8);border:1px solid #f0dfb4}
+.nk-title{font-weight:800;font-size:.95rem;color:#8a6a1c}
+.nk-chars{font-size:1.9rem;letter-spacing:.12em;margin:8px 0 4px;color:var(--ink)}
+.nk-body{font-size:.86rem;color:var(--ink2)}
+.nk-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:10px}
+
+/* 駅スタンプ */
+.stamp{width:44px;height:44px;flex:0 0 auto;display:grid;place-items:center;transform:rotate(-7deg)}
+.stamp-in{
+  width:100%;height:100%;border:2.5px solid var(--red);border-radius:50%;
+  display:grid;place-items:center;color:var(--red);font-weight:800;font-size:.95rem;
+  box-shadow:inset 0 0 0 2px #fff, inset 0 0 0 3.5px var(--red);
+  background:rgba(199,58,53,.06);letter-spacing:-.04em;line-height:1;padding:2px;text-align:center;
+}
+.stamp.off .stamp-in{border-color:#d9d0c2;color:#c6bcac;border-style:dashed;box-shadow:none;background:none}
+.stamp-big{width:96px;height:96px;margin:0 auto 6px}
+.stamp-big .stamp-in{font-size:1.9rem;border-width:4px;box-shadow:inset 0 0 0 3px #fff, inset 0 0 0 5px var(--red)}
+.stamp-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center;background:var(--card);
+  border-radius:var(--r);box-shadow:var(--shadow);padding:12px;margin-bottom:14px}
+.stamp-count{margin-left:auto;font-size:.8rem;color:var(--ink2)}
+
+/* exam card on the map */
+.exam-card{display:flex;align-items:center;gap:12px;background:var(--card);border-radius:14px;
+  box-shadow:var(--shadow);padding:10px 14px;margin:4px 0 16px 34px}
+.exam-card.locked{opacity:.55;box-shadow:none;background:#f6f1e8}
+.exam-card .ex-main{flex:1;min-width:0}
+.exam-card .ex-title{font-weight:700}
+.exam-card .ex-sub{font-size:.78rem;color:var(--ink2)}
+.exam-card .ex-go{font-size:.8rem;color:var(--red);font-weight:700;white-space:nowrap}
+.exam-card.locked .ex-go{color:var(--ink2)}
+
+/* spot-the-error */
+.tok.pick{
+  border-bottom:2.5px dashed var(--ink2);border-radius:4px;padding:0 4px;margin:0 1px;
+  cursor:pointer;transition:background .1s;
+}
+.tok.pick:active{background:var(--red-soft)}
+.tok.pick.ok{background:var(--green-soft);border-bottom-color:var(--green);color:var(--green)}
+.tok.pick.ko{background:var(--red-soft);border-bottom-color:var(--red);animation:shake .3s}
+
+/* reading-in-context */
+.spot-hint{margin-top:18px}
+.rk{color:var(--red);border-bottom:3px solid var(--red);padding:0 2px}
+.rd-target{font-size:3.4rem;text-align:center;margin:14px 0 4px;font-weight:600}
+
+/* weakness rows */
+.wrow{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
+.wrow:first-of-type{border-top:none}
+.wrow[data-gp]{cursor:pointer}
+.wr-main{flex:1;min-width:0}
+.wr-top{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.wr-label{font-weight:600;font-size:.95rem}
+.wr-prt{color:var(--red);font-size:1.15rem}
+.wr-fn{font-size:.8rem;color:var(--ink2);font-weight:400}
+.wr-acc{font-size:.85rem;font-weight:700;color:var(--ink2)}
+.wr-sub{font-size:.76rem;color:var(--ink2);margin-top:3px}
+.wr-go{color:var(--ink2)}
+.abar{height:6px;background:var(--line);border-radius:3px;margin-top:5px;overflow:hidden}
+.abar i{display:block;height:100%;border-radius:3px}
+.abar .ab-good{background:var(--green)}
+.abar .ab-mid{background:var(--gold)}
+.abar .ab-bad{background:var(--red)}
+
+/* kanji detail */
+.kj-detail{background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);padding:16px;margin-bottom:12px;text-align:center}
+.kj-big{font-size:4rem;line-height:1.1}
+.kj-mean{color:var(--ink2);margin-bottom:8px}
+.kj-detail .wp-krow{text-align:left}
+
+/* 5 nav tabs need a little less room each */
+.nav-btn{padding:2px 8px}
+.nav-l{font-size:.64rem}
+
 @media (min-width:600px){ body{font-size:17px} }

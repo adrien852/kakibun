@@ -1,33 +1,57 @@
-/* Kakibun — session runner: lessons + the four exercise modes. */
+/* Kakibun — session runner.
+ * Modes: lesson · tiles_read · tiles · cloze · transform · speak · spot · reading
+ * Variants via opts: {exam:{arc}} no hints / no retries / scored
+ *                    {drill:true} Renforcer   {debut:{chars}} new-kanji session
+ */
 const Session = (() => {
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
 
   let items = [], idx = 0, combo = 0, bestCombo = 0, score = 0, total = 0;
-  let masteredList = [], firstTry = true, curParsed = null, curItem = null;
+  let events = [], firstTry = true, curParsed = null, curItem = null, curCtx = null;
+  let opts = {}, results = [];
+
+  const isExam = () => !!opts.exam;
 
   /* ---------- shared rendering ---------- */
-  const dispOpts = () => ({
-    showAll: Engine.state().settings.showAllKanji || !Bridge.hasInfo(),
-    furi: Engine.state().settings.furi
-  });
+  function dispOpts(over) {
+    const s = Engine.state().settings;
+    return Object.assign({
+      showAll: s.showAllKanji || !Bridge.hasInfo(),
+      furi: s.furi
+    }, over || {});
+  }
 
-  function tokHtml(tok, i, opts) {
-    const o = opts || {};
+  function segHtml(tok, d) {
+    return Bridge.display(tok, d).map(s => s.rt !== undefined
+      ? `<ruby>${esc(s.t)}<rt>${esc(s.rt)}</rt></ruby>` : esc(s.t)).join("");
+  }
+
+  /* o: {blank, swap:{i,surf}, target:{i,ch}, pick:"p", d} */
+  function tokHtml(tok, i, o) {
+    o = o || {};
+    const d = o.d || dispOpts();
     if (tok.type === "punct") return `<span class="tok">${esc(tok.surfR)}</span>`;
     if (o.blank === i) return `<span class="tok blank" data-i="${i}">？</span>`;
-    const segs = Bridge.display(tok, dispOpts());
-    const inner = segs.map(s => s.rt !== undefined
-      ? `<ruby>${esc(s.t)}<rt>${esc(s.rt)}</rt></ruby>` : esc(s.t)).join("");
+    if (o.swap && o.swap.i === i)
+      return `<span class="tok prt pick" data-i="${i}">${esc(o.swap.surf)}</span>`;
+    if (o.pick === "p" && tok.type === "p")
+      return `<span class="tok prt pick" data-i="${i}">${esc(tok.surfR)}</span>`;
+    let inner = segHtml(tok, d);
+    if (o.target && o.target.i === i) {
+      const ch = o.target.ch;
+      inner = segHtml(tok, Object.assign({}, d, { furi: "none" }))
+        .replace(esc(ch), `<span class="rk">${esc(ch)}</span>`);
+      return `<span class="tok" data-i="${i}">${inner}</span>`;
+    }
     const cls = "tok tap" + (tok.type === "p" ? " prt" : "");
     return `<span class="${cls}" data-i="${i}">${inner}</span>`;
   }
 
-  function jpHtml(parsed, opts) {
-    const o = opts || {};
+  function jpHtml(parsed, o) {
+    o = o || {};
     const body = parsed.toks.map((t, i) => tokHtml(t, i, o)).join("");
-    const tail = /[かねよ。]$/.test(parsed.surfR) && parsed.surfR.endsWith("か") ? "。" : "。";
-    return `<div class="jp${o.noruby ? " noruby" : ""}">${body}<span class="tok">${tail}</span></div>`;
+    return `<div class="jp">${body}<span class="tok">。</span></div>`;
   }
 
   function bindTaps(container, parsed, gpId) {
@@ -40,14 +64,14 @@ const Session = (() => {
   }
 
   const tts = (parsed, rate) => Voice.speak(parsed.surfK + "。", rate);
+  const foot = (b) => { $("sess-foot").innerHTML = `<div class="sess-foot-in">${b}</div>`; };
+  const setBar = () => { $("sess-bar-fill").style.width = (idx / items.length * 100) + "%"; };
 
-  function foot(buttons) {
-    $("sess-foot").innerHTML = `<div class="sess-foot-in">${buttons}</div>`;
-  }
-  function setBar() { $("sess-bar-fill").style.width = (idx / items.length * 100) + "%"; }
-  function kindLine(kind) {
-    const icons = { lesson:"⛩", tiles:"🎧", tiles_read:"🧩", cloze:"✏️", speak:"🎤", transform:"🔁" };
-    return `<div class="prompt-kind"><span class="pk-ico">${icons[kind] || ""}</span>${esc(App.t("kind_" + kind))}</div>`;
+  function kindLine(kind, extra) {
+    const icons = { lesson:"⛩", tiles:"🎧", tiles_read:"🧩", cloze:"✏️", speak:"🎤",
+                    transform:"🔁", spot:"🔍", reading:"🈯", debut:"✨" };
+    const label = extra || App.t("kind_" + kind);
+    return `<div class="prompt-kind"><span class="pk-ico">${icons[kind] || ""}</span>${esc(label)}</div>`;
   }
 
   /* ---------- feedback ---------- */
@@ -57,39 +81,46 @@ const Session = (() => {
     const cEl = $("combo");
     cEl.hidden = combo < 2;
     $("combo-n").textContent = combo;
-    if (combo >= 4) cEl.classList.add("hot"); else cEl.classList.remove("hot");
+    cEl.classList.toggle("hot", combo >= 4);
     if (ok) { Sfx.good(combo); score++; } else Sfx.bad();
     total++;
+    results.push({ gp: gpId, ok, sent: curItem.sent, kind: curItem.kind });
+
+    const lang = App.lang();
+    const sent = curItem.sent != null ? SENTENCES[curItem.sent] : null;
     const box = document.createElement("div");
     box.className = "fb " + (ok ? "good" : "bad");
-    const lang = App.lang();
-    const sent = SENTENCES[curItem.sent];
     box.innerHTML = `<div class="fb-head">${ok ? esc(App.pickOk()) : esc(App.t("bad"))}</div>
       ${!ok ? `<div class="wp-note">${esc(App.t("answer_was"))}</div>` : ""}
       <div class="fb-jp"></div>
-      <div class="translation">${esc(sent[lang === "fr" ? "fr" : "en"])}</div>
-      ${sent.note ? `<div class="why"><div class="why-t">💡</div>${esc(sent.note[lang])}</div>` : ""}
-      ${extraHtml || ""}`;
-    box.querySelector(".fb-jp").innerHTML = jpHtml(parsed).replace('class="jp"', 'class="jp fbjp"');
+      ${sent ? `<div class="translation">${esc(sent[lang])}</div>` : ""}
+      ${!isExam() && sent && sent.note ? `<div class="why"><div class="why-t">💡</div>${esc(sent.note[lang])}</div>` : ""}
+      ${isExam() ? "" : (extraHtml || "")}`;
+    box.querySelector(".fb-jp").innerHTML = jpHtml(parsed);
     $("sess-body").appendChild(box);
     bindTaps(box, parsed, gpId);
-    const masteredNow = Engine.record(gpId, ok);
-    Engine.noteSeen(curItem.sent);
-    if (masteredNow) {
-      masteredList.push(gpId);
-      setTimeout(() => {
-        Sfx.master();
-        const g = GRAMMAR.find(x => x.id === gpId);
-        App.toastMaster(`${g.pat}`, App.t("master_toast"));
-      }, 500);
+
+    if (!isExam()) {
+      const ev = Engine.record(gpId, ok, curCtx);
+      Engine.noteSeen(curItem.sent);
+      if (ev === "mastered") {
+        events.push({ gp: gpId, kind: "mastered" });
+        setTimeout(() => {
+          Sfx.master();
+          const g = GRAMMAR.find(x => x.id === gpId);
+          App.toastMaster(g.pat, App.t("master_toast"));
+        }, 500);
+      }
+    } else {
+      Engine.recordStats(curCtx, ok);
+      Engine.noteSeen(curItem.sent);
     }
     foot(`<button class="btn big primary" id="fb-next">${esc(App.t("cont"))}</button>`);
     $("fb-next").addEventListener("click", next);
-    $("fb-next").focus();
     box.scrollIntoView({ behavior: "smooth", block: "end" });
   }
 
-  /* ---------- item renderers ---------- */
+  /* ---------- lesson ---------- */
   function showLesson(item) {
     const g = GRAMMAR.find(x => x.id === item.gp);
     const lang = App.lang();
@@ -117,34 +148,35 @@ const Session = (() => {
     $("les-go").addEventListener("click", next);
   }
 
+  /* ---------- tiles ---------- */
   function showTiles(item, withText) {
     const sent = SENTENCES[item.sent];
     const parsed = Parse.sentence(sent.dsl);
     curParsed = parsed;
+    curCtx = { mode: "tiles" };
     const lang = App.lang();
+    const showTr = withText && !isExam();
     const target = parsed.toks.filter(t => t.type !== "punct");
     const p = Engine.point(item.gp);
-    // distractors once the point is warm
     let distract = [];
-    if (p.enc >= 2) {
-      const usedPrt = new Set(target.filter(t => t.type === "p").map(t => t.surfR));
-      const pool = ["は","が","を","に","で","へ","と","も"].filter(x => !usedPrt.has(x));
+    if (p.enc >= 2 || isExam()) {
+      const used = new Set(target.filter(t => t.type === "p").map(t => t.surfR));
+      const pool = ["は","が","を","に","で","へ","と","も"].filter(x => !used.has(x));
       distract = pool.sort(() => Math.random() - 0.5).slice(0, 2)
-        .map(x => ({ type: "p", surfK: null, surfR: x, distract: true }));
+        .map(x => ({ type: "p", surfK: null, surfR: x }));
     }
-    const tiles = target.concat(distract).map((t, n) => ({ t, n }))
-      .sort(() => Math.random() - 0.5);
-    $("sess-body").innerHTML = `${kindLine(withText ? "tiles_read" : "tiles")}
+    const combined = target.concat(distract);      // data-n indexes THIS array
+    const shuffled = combined.map((t, n) => ({ t, n })).sort(() => Math.random() - 0.5);
+    const d = dispOpts();
+    $("sess-body").innerHTML = `${kindLine(withText ? "tiles_read" : "tiles",
+        item.debut ? App.t("kind_debut") : null)}
       <button class="audio-big" id="t-play">🔊</button>
-      ${withText ? `<div class="translation" style="text-align:center">${esc(sent[lang])}</div>` : ""}
+      ${showTr ? `<div class="translation" style="text-align:center">${esc(sent[lang])}</div>` : ""}
       <div class="answer-row" id="t-answer"></div>
-      <div class="tile-bank" id="t-bank">${tiles.map(x => {
-        const segs = Bridge.display(x.t, dispOpts());
-        const inner = segs.map(s => s.rt !== undefined ? `<ruby>${esc(s.t)}<rt>${esc(s.rt)}</rt></ruby>` : esc(s.t)).join("");
-        return `<button class="tile" data-n="${x.n}">${inner}</button>`;
-      }).join("")}</div>`;
-    const seq = [];
-    const bank = $("t-bank"), ans = $("t-answer");
+      <div class="tile-bank" id="t-bank">${shuffled.map(x =>
+        `<button class="tile" data-n="${x.n}">${segHtml(x.t, d)}</button>`).join("")}</div>`;
+    const seq = [], bank = $("t-bank"), ans = $("t-answer");
+    const sync = () => { $("t-check").disabled = seq.length === 0; };
     bank.querySelectorAll(".tile").forEach(b => b.addEventListener("click", () => {
       if (b.classList.contains("used")) return;
       Sfx.tap();
@@ -158,16 +190,12 @@ const Session = (() => {
         ans.removeChild(clone);
         bank.querySelector(`.tile[data-n="${clone.dataset.n}"]`).classList.remove("used");
         seq.splice(seq.indexOf(clone), 1);
-        checkBtnState();
+        sync();
       });
       ans.appendChild(clone);
       seq.push(clone);
-      checkBtnState();
+      sync();
     }));
-    const combined = target.concat(distract); // data-n indexes THIS array (pre-shuffle)
-    function checkBtnState() {
-      $("t-check").disabled = seq.length === 0;
-    }
     $("t-play").addEventListener("click", () => tts(parsed));
     setTimeout(() => tts(parsed), 500);
     foot(`<button class="btn ghost" id="t-replay">${esc(App.t("replay"))}</button>
@@ -176,31 +204,32 @@ const Session = (() => {
     $("t-check").addEventListener("click", () => {
       const built = seq.map(c => combined[+c.dataset.n].surfR).join("");
       const want = target.map(t => t.surfR).join("");
-      const ok = built === want;
       $("sess-foot").innerHTML = "";
       bank.querySelectorAll(".tile").forEach(b => b.classList.add("used"));
-      feedback(ok && firstTry, parsed, item.gp);
+      feedback(built === want && firstTry, parsed, item.gp);
     });
   }
 
+  /* ---------- particle cloze ---------- */
   function showCloze(item) {
     const sent = SENTENCES[item.sent];
     const parsed = Parse.sentence(sent.dsl);
     curParsed = parsed;
     const lang = App.lang();
     const prtIdx = parsed.toks.map((t, i) => t.type === "p" ? i : -1).filter(i => i >= 0);
-    // prefer a particle that appears in the grammar point's pattern
     const g = GRAMMAR.find(x => x.id === item.gp);
     const pref = prtIdx.filter(i => g.pat.includes(parsed.toks[i].surfR));
-    const blank = (pref.length ? pref : prtIdx)[Math.floor(Math.random() * (pref.length ? pref.length : prtIdx.length))];
+    const src = pref.length ? pref : prtIdx;
+    const blank = src[Math.floor(Math.random() * src.length)];
     const tok = parsed.toks[blank];
     const correct = tok.surfR;
+    curCtx = { mode: "cloze", prt: tok.fn };
     const pool = ["は","が","を","に","で","へ","と","も","か","の","や","から","まで","より","だけ"]
       .filter(x => x !== correct).sort(() => Math.random() - 0.5).slice(0, 5);
     const choices = pool.concat([correct]).sort(() => Math.random() - 0.5);
     $("sess-body").innerHTML = `${kindLine("cloze")}
       <div id="c-jp"></div>
-      <div class="translation">${esc(sent[lang])}</div>
+      ${isExam() ? "" : `<div class="translation">${esc(sent[lang])}</div>`}
       <div class="choices prt-choices" id="c-choices">${choices.map(c =>
         `<button class="choice" data-c="${esc(c)}">${esc(c)}</button>`).join("")}</div>`;
     $("c-jp").innerHTML = jpHtml(parsed, { blank });
@@ -210,22 +239,108 @@ const Session = (() => {
     $("c-choices").querySelectorAll(".choice").forEach(b => b.addEventListener("click", () => {
       if (done) return;
       const ok = b.dataset.c === correct;
-      if (!ok) {
-        b.classList.add("ko");
-        firstTry = false;
-        Sfx.bad();
-        return; // let him try again — the explanation comes with the right pick
-      }
+      if (!ok && !isExam()) { b.classList.add("ko"); firstTry = false; Sfx.bad(); return; }
       done = true;
-      b.classList.add("ok");
-      $("c-choices").querySelectorAll(".choice").forEach(x => { if (x !== b) x.classList.add("dim"); });
+      b.classList.add(ok ? "ok" : "ko");
+      $("c-choices").querySelectorAll(".choice").forEach(x => {
+        if (x !== b) x.classList.add(x.dataset.c === correct ? "ok" : "dim");
+      });
       const fn = PARTICLES[tok.fn];
-      const why = `<div class="why"><div class="why-t">${esc(App.t("why").replace("{p}", correct))} — ${esc(fn.name[lang])}</div>${esc(fn.expl[lang])}</div>`;
+      const why = fn ? `<div class="why"><div class="why-t">${esc(App.t("why").replace("{p}", correct))} — ${esc(fn.name[lang])}</div>${esc(fn.expl[lang])}</div>` : "";
       tts(parsed);
-      feedback(firstTry, parsed, item.gp, why);
+      feedback(ok && firstTry, parsed, item.gp, why);
     }));
   }
 
+  /* ---------- spot the wrong particle ---------- */
+  function showSpot(item) {
+    const sent = SENTENCES[item.sent];
+    const parsed = Parse.sentence(sent.dsl);
+    curParsed = parsed;
+    const lang = App.lang();
+    const cands = Engine.spotCandidates(sent);
+    if (!cands.length) return showCloze(item);   // needs 2+ particles to be fair
+    const c = cands[Math.floor(Math.random() * cands.length)];
+    const good = c.surf;
+    const bad = c.alts[Math.floor(Math.random() * c.alts.length)];
+    curCtx = { mode: "spot", prt: c.fn };
+    $("sess-body").innerHTML = `${kindLine("spot")}
+      <div id="sp-jp"></div>
+      <div class="mic-hint spot-hint">${esc(App.t("spot_hint"))}</div>`;
+    $("sp-jp").innerHTML = jpHtml(parsed, { swap: { i: c.i, surf: bad }, pick: "p" });
+    foot("");
+    let done = false;
+    $("sp-jp").querySelectorAll(".tok.pick").forEach(el => el.addEventListener("click", () => {
+      if (done) return;
+      const ok = +el.dataset.i === c.i;
+      if (!ok && !isExam()) { el.classList.add("ko"); firstTry = false; Sfx.bad(); return; }
+      done = true;
+      $("sp-jp").querySelector(`.tok.pick[data-i="${c.i}"]`).classList.add("ok");
+      if (!ok) el.classList.add("ko");
+      const fn = PARTICLES[c.fn];
+      const why = `<div class="why"><div class="why-t">${esc(App.t("spot_why").replace("{good}", good).replace("{bad}", bad))}</div>${fn ? esc(fn.expl[lang]) : ""}</div>`;
+      tts(parsed);
+      feedback(ok && firstTry, parsed, item.gp, why);
+    }));
+  }
+
+  /* ---------- which reading? ---------- */
+  function showReading(item) {
+    const sent = SENTENCES[item.sent];
+    const parsed = Parse.sentence(sent.dsl);
+    curParsed = parsed;
+    const lang = App.lang();
+    const d = dispOpts();
+    let cands = Engine.readingCandidates(sent, d.showAll);
+    if (item.focus) {
+      const f = cands.filter(c => item.focus.includes(c.ch));
+      if (f.length) cands = f;
+    }
+    if (!cands.length) return showTiles(item, true);
+    const c = cands[Math.floor(Math.random() * cands.length)];
+    const info = KANJI_INFO[c.ch];
+    curCtx = { mode: "reading" };
+    const correct = c.reading;
+    const own = info.on.concat(info.kun).map(e => e[0]).filter(r => r !== correct);
+    let pool = [...new Set(own)];
+    if (pool.length < 3) {
+      const others = Object.keys(KANJI_INFO)
+        .filter(k => k !== c.ch).sort(() => Math.random() - 0.5).slice(0, 6)
+        .flatMap(k => KANJI_INFO[k].on.concat(KANJI_INFO[k].kun).map(e => e[0]));
+      pool = [...new Set(pool.concat(others))].filter(r => r !== correct);
+    }
+    const choices = pool.sort(() => Math.random() - 0.5).slice(0, 3).concat([correct])
+      .sort(() => Math.random() - 0.5);
+    $("sess-body").innerHTML = `${kindLine("reading")}
+      <div id="rd-jp"></div>
+      ${isExam() ? "" : `<div class="translation">${esc(sent[lang])}</div>`}
+      <div class="rd-target">${esc(c.ch)}</div>
+      <div class="mic-hint">${esc(App.t("reading_q"))}</div>
+      <div class="choices" id="rd-choices">${choices.map(r =>
+        `<button class="choice" data-r="${esc(r)}">${esc(r)}</button>`).join("")}</div>`;
+    $("rd-jp").innerHTML = jpHtml(parsed, { target: { i: c.tokIdx, ch: c.ch }, d: Object.assign({}, d, { furi: "none" }) });
+    foot("");
+    let done = false;
+    $("rd-choices").querySelectorAll(".choice").forEach(b => b.addEventListener("click", () => {
+      if (done) return;
+      const ok = b.dataset.r === correct;
+      if (!ok && !isExam()) { b.classList.add("ko"); firstTry = false; Sfx.bad(); return; }
+      done = true;
+      b.classList.add(ok ? "ok" : "ko");
+      $("rd-choices").querySelectorAll(".choice").forEach(x => {
+        if (x !== b) x.classList.add(x.dataset.r === correct ? "ok" : "dim");
+      });
+      const tag = c.rt.type === "on" ? "音 " + App.t("wp_on") : "訓 " + App.t("wp_kun");
+      const fq = c.rt.f === 2 ? App.t("wp_main") : c.rt.f === 1 ? App.t("wp_common") : App.t("wp_rare");
+      const note = c.rt.note ? `<br>${esc(c.rt.note[lang])}` : "";
+      const why = `<div class="why"><div class="why-t">${esc(c.ch)} → ${esc(correct)} · ${esc(tag)} · ${esc(fq)}</div>
+        ${esc(info[lang])}${note}<br><span class="wp-note">${esc(App.t("reading_why").replace("{k}", c.ch))}</span></div>`;
+      tts(parsed);
+      feedback(ok && firstTry, parsed, item.gp, why);
+    }));
+  }
+
+  /* ---------- transform ---------- */
   function showTransform(item) {
     const sent = SENTENCES[item.sent];
     const parsed = Parse.sentence(sent.dsl);
@@ -242,6 +357,7 @@ const Session = (() => {
     let base, answer;
     try { base = Conj.conj(tok.lex, from); answer = Conj.conj(tok.lex, to); }
     catch (e) { return showTiles(item, false); }
+    curCtx = { mode: "transform", form: to };
     const formsPool = tok.lex.pos === "adji" ? Conj.ADJ_FORMS
       : tok.lex.pos === "cop" ? Conj.COP_FORMS : Conj.VERB_FORMS;
     const seen = new Set([answer.r]);
@@ -249,41 +365,43 @@ const Session = (() => {
     for (const f of formsPool.slice().sort(() => Math.random() - 0.5)) {
       if (distract.length >= 3) break;
       try {
-        const c = Conj.conj(tok.lex, f);
-        if (!seen.has(c.r)) { seen.add(c.r); distract.push(c); }
+        const cc = Conj.conj(tok.lex, f);
+        if (!seen.has(cc.r)) { seen.add(cc.r); distract.push(cc); }
       } catch (e) {}
     }
-    const show = (c) => {
-      const t2 = { type: "w", lex: tok.lex, form: null, surfK: c.k, surfR: c.r };
-      return Bridge.display(t2, dispOpts()).map(s => s.rt !== undefined
-        ? `<ruby>${esc(s.t)}<rt>${esc(s.rt)}</rt></ruby>` : esc(s.t)).join("");
-    };
+    const d = dispOpts();
+    const show = (cc) => segHtml({ type: "w", lex: tok.lex, form: null, surfK: cc.k, surfR: cc.r }, d);
     const choices = distract.concat([answer]).sort(() => Math.random() - 0.5);
     const fLabel = App.t("form_" + to) !== "form_" + to ? App.t("form_" + to) : g.pat;
     $("sess-body").innerHTML = `${kindLine("transform")}
       <div class="lesson"><div class="les-pat">${show(base)} →&nbsp;?</div>
-      <div class="les-name">${esc(App.t("trans_q").replace("{w}", "").replace("{f}", fLabel)).replace("→", "")}</div></div>
-      <div class="choices" id="tr-choices">${choices.map((c, i) =>
-        `<button class="choice" data-i="${i}">${show(c)}</button>`).join("")}</div>`;
+      <div class="les-name">${esc(fLabel)}</div></div>
+      <div class="choices" id="tr-choices">${choices.map((cc, i) =>
+        `<button class="choice" data-i="${i}">${show(cc)}</button>`).join("")}</div>`;
     foot("");
     let done = false;
     $("tr-choices").querySelectorAll(".choice").forEach(b => b.addEventListener("click", () => {
       if (done) return;
       const ok = choices[+b.dataset.i].r === answer.r;
-      if (!ok) { b.classList.add("ko"); firstTry = false; Sfx.bad(); return; }
+      if (!ok && !isExam()) { b.classList.add("ko"); firstTry = false; Sfx.bad(); return; }
       done = true;
-      b.classList.add("ok");
-      $("tr-choices").querySelectorAll(".choice").forEach(x => { if (x !== b) x.classList.add("dim"); });
+      b.classList.add(ok ? "ok" : "ko");
+      $("tr-choices").querySelectorAll(".choice").forEach(x => {
+        if (x !== b && choices[+x.dataset.i].r === answer.r) x.classList.add("ok");
+        else if (x !== b) x.classList.add("dim");
+      });
       const why = `<div class="why"><div class="why-t">${esc(g.pat)}</div>${esc(g.expl[lang])}</div>`;
       tts(parsed);
-      feedback(firstTry, parsed, item.gp, why);
+      feedback(ok && firstTry, parsed, item.gp, why);
     }));
   }
 
+  /* ---------- read aloud ---------- */
   function showSpeak(item) {
     const sent = SENTENCES[item.sent];
     const parsed = Parse.sentence(sent.dsl);
     curParsed = parsed;
+    curCtx = { mode: "speak" };
     const lang = App.lang();
     let tries = 0;
     $("sess-body").innerHTML = `${kindLine("speak")}
@@ -297,10 +415,7 @@ const Session = (() => {
     foot(`<button class="btn ghost" id="s-replay">🔊 ${esc(App.t("replay"))}</button>
           <button class="btn ghost" id="s-skip">${esc(App.t("skip"))}</button>`);
     $("s-replay").addEventListener("click", () => tts(parsed, 0.8));
-    $("s-skip").addEventListener("click", () => {
-      Voice.cancel();
-      feedback(false, parsed, item.gp);
-    });
+    $("s-skip").addEventListener("click", () => { Voice.cancel(); feedback(false, parsed, item.gp); });
     const mic = $("s-mic"), hint = $("s-hint"), heard = $("s-heard");
     let listening = false, finished = false;
     mic.addEventListener("click", () => {
@@ -313,30 +428,23 @@ const Session = (() => {
         (alts) => {
           const ok = alts.some(a => Voice.match(a, parsed.surfK, parsed.surfR));
           heard.textContent = App.t("speak_heard") + " " + (alts[0] || "");
-          listening = false;
-          mic.classList.remove("rec");
-          if (ok) {
-            finished = true;
-            feedback(firstTry, parsed, item.gp);
-          } else {
-            tries++;
-            firstTry = false;
-            Sfx.bad();
+          listening = false; mic.classList.remove("rec");
+          if (ok) { finished = true; feedback(firstTry, parsed, item.gp); }
+          else {
+            tries++; firstTry = false; Sfx.bad();
             hint.textContent = App.t("speak_close");
-            if (tries >= 2) {
+            if (tries >= 2 || isExam()) {
               finished = true;
               setTimeout(() => feedback(false, parsed, item.gp), 900);
             }
           }
         },
         (got) => {
-          listening = false;
-          mic.classList.remove("rec");
+          listening = false; mic.classList.remove("rec");
           if (!got && !finished) hint.textContent = App.t("speak_nothing") + " " + App.t("speak_tap");
         },
         () => {
-          listening = false;
-          mic.classList.remove("rec");
+          listening = false; mic.classList.remove("rec");
           hint.textContent = App.t("speak_no_sr");
         }
       );
@@ -346,33 +454,38 @@ const Session = (() => {
   /* ---------- flow ---------- */
   function render() {
     WordPop.hide();
-    firstTry = true;
+    firstTry = true; curCtx = null;
     setBar();
     const it = items[idx];
     curItem = it;
     if (!it) return finish();
-    if (it.kind === "lesson") return showLesson(it);
-    if (it.kind === "tiles_read") return showTiles(it, true);
-    if (it.kind === "tiles") return showTiles(it, false);
-    if (it.kind === "cloze") return showCloze(it);
-    if (it.kind === "transform") return showTransform(it);
-    if (it.kind === "speak") return showSpeak(it);
-    return showTiles(it, false);
+    switch (it.kind) {
+      case "lesson": return showLesson(it);
+      case "tiles_read": return showTiles(it, true);
+      case "tiles": return showTiles(it, false);
+      case "cloze": return showCloze(it);
+      case "transform": return showTransform(it);
+      case "speak": return showSpeak(it);
+      case "spot": return showSpot(it);
+      case "reading": return showReading(it);
+      default: return showTiles(it, false);
+    }
   }
 
   function next() { Voice.stop(); Voice.cancel(); idx++; render(); }
 
   function finish() {
+    $("sess-bar-fill").style.width = "100%";
+    if (isExam()) return Exam.finish(opts.exam.arc, results, opts);
     Sfx.complete();
     const st = Engine.state();
     if (bestCombo > st.bestCombo) { st.bestCombo = bestCombo; Engine.save(); }
-    const lang = App.lang();
-    const mastered = masteredList.map(id => {
-      const g = GRAMMAR.find(x => x.id === id);
+    const mastered = events.filter(e => e.kind === "mastered").map(e => {
+      const g = GRAMMAR.find(x => x.id === e.gp);
       return `<div class="res-line">🏅 ${esc(g.pat)} — ${esc(App.t("res_mastered"))}</div>`;
     }).join("");
     const streak = Engine.streak();
-    $("sess-bar-fill").style.width = "100%";
+    if (opts.debut) Engine.clearNewKanji();
     $("sess-body").innerHTML = `<div class="result">
       <div class="res-big">⛩</div>
       <div class="res-score">${esc(App.t("res_title"))}</div>
@@ -385,38 +498,49 @@ const Session = (() => {
     $("res-done").addEventListener("click", close);
   }
 
-  function mapSpeakAvailability(list) {
+  /* speak needs a mic + the setting on; otherwise fall back to tiles */
+  function fixModes(list) {
     const ok = Voice.available() && Engine.state().settings.voiceIn;
     return list.map(it => (!ok && it.kind === "speak") ? Object.assign({}, it, { kind: "tiles" }) : it);
   }
 
-  function start(list) {
-    items = mapSpeakAvailability(list || Engine.buildSession());
+  function start(list, o) {
+    opts = o || {};
+    items = fixModes(list || Engine.buildSession());
     if (!items.length) return;
-    idx = 0; combo = 0; bestCombo = 0; score = 0; total = 0; masteredList = [];
+    idx = 0; combo = 0; bestCombo = 0; score = 0; total = 0; events = []; results = [];
     $("combo").hidden = true;
     $("session").hidden = false;
     document.getElementById("nav").style.display = "none";
     render();
   }
 
-  /* focused practice on one grammar point (from map / library) */
+  /* focused practice on one grammar point (map / library / home due list) */
   function practice(gpId) {
     const p = Engine.point(gpId);
     const list = [];
     if (p.enc === 0) list.push({ kind: "lesson", gp: gpId });
     const sents = Engine.sentencesFor(gpId).slice().sort(() => Math.random() - 0.5).slice(0, 5);
-    const g = GRAMMAR.find(x => x.id === gpId);
-    sents.forEach((s, i) => {
-      const caps = (() => { const pr = Parse.sentence(s.dsl); return {
-        prt: pr.toks.some(t => t.type === "p"),
-        tf: pr.toks.some(t => t.type === "w" && t.form) }; })();
-      let kind = i === 0 ? "tiles_read" : i === 1 ? "tiles" : i === 2 && caps.prt ? "cloze"
-        : i === 3 && g.tf && caps.tf ? "transform" : "speak";
-      if (kind === "cloze" && !caps.prt) kind = "tiles";
-      list.push({ kind, gp: gpId, sent: s.i });
-    });
+    sents.forEach((s, i) => list.push({ kind: Engine.modeFor(gpId, s, i), gp: gpId, sent: s.i }));
     start(list);
+  }
+
+  function strengthen() {
+    const list = Engine.buildStrengthen(10);
+    if (!list.length) return;
+    start(list, { drill: true, back: "strengthen" });
+  }
+
+  function kanjiDebut(chars) {
+    const list = Engine.buildKanjiDebut(chars, 6);
+    if (!list.length) { Engine.clearNewKanji(); App.renderHome(); return; }
+    start(list, { debut: true });
+  }
+
+  function exam(arcId) {
+    const list = Exam.build(arcId);
+    if (!list.length) return;
+    start(list, { exam: { arc: arcId }, back: "map" });
   }
 
   function close() {
@@ -424,8 +548,12 @@ const Session = (() => {
     $("session").hidden = true;
     document.getElementById("nav").style.display = "";
     App.renderHome();
-    Journey.render();
+    if (opts.back === "map") { Journey.render(); App.nav("map"); }
+    else if (opts.back === "strengthen") { Strengthen.render(); App.nav("strengthen"); }
+    else Journey.render();
+    opts = {};
   }
 
-  return { start, practice, close, _debug: () => ({ item: curItem, parsed: curParsed, idx, items }) };
+  return { start, practice, strengthen, kanjiDebut, exam, close,
+           _debug: () => ({ item: curItem, parsed: curParsed, idx, items, opts }) };
 })();

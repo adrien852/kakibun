@@ -130,24 +130,58 @@ const Library = (() => {
       return `<div class="kj-cell ${on ? "" : "off"}" data-ch="${esc(ch)}">${esc(ch)}<span class="kj-r">${esc(KANJI_INFO[ch][lang].split(/[;,；]/)[0])}</span></div>`;
     }).join("") + `</div>`;
     c.innerHTML = html;
-    c.querySelectorAll(".kj-cell").forEach(el => el.addEventListener("click", () => {
-      const ch = el.dataset.ch;
-      const meta = KANJI_INFO[ch];
-      const rows = [["on", meta.on], ["kun", meta.kun]].map(([type, list]) =>
-        list.map(e => {
-          const fTag = e[1] === 2 ? `<span class="wp-tag freq1">★ ${esc(App.t("wp_main"))}</span>`
-            : e[1] === 1 ? `<span class="wp-tag freqr">${esc(App.t("wp_common"))}</span>`
-            : `<span class="wp-tag freqr">${esc(App.t("wp_rare"))}</span>`;
-          const note = e[2] ? `<div class="wp-note">${esc(lang === "fr" ? e[2] : e[3])}</div>` : "";
-          return `<div class="wp-krow"><div class="wp-kch"><span class="wp-tag ${type}">${type === "on" ? "音" : "訓"}</span></div>
-            <div class="wp-kmain"><b>${esc(e[0])}</b>${fTag}${note}</div></div>`;
-        }).join("")).join("");
-      const pop = document.getElementById("wordpop");
-      pop.innerHTML = `<button class="wp-close" onclick="WordPop.hide()">✕</button>
-        <div class="wp-head"><span class="wp-word">${esc(ch)}</span><span class="wp-read">${esc(meta[lang])}</span></div>
-        <div class="wp-kanji">${rows}</div>`;
-      pop.hidden = false;
-    }));
+    c.querySelectorAll(".kj-cell").forEach(el =>
+      el.addEventListener("click", () => kanjiDetail(el.dataset.ch)));
+  }
+
+  /* One kanji: readings ranked by how common they are, then every unlocked
+   * sentence where you actually meet it. */
+  function kanjiDetail(ch) {
+    const lang = App.lang();
+    const meta = KANJI_INFO[ch];
+    const c = document.getElementById("lib-content");
+    const rows = [["on", meta.on], ["kun", meta.kun]].map(([type, list]) =>
+      list.map(e => {
+        const fTag = e[1] === 2 ? `<span class="wp-tag freq1">★ ${esc(App.t("wp_main"))}</span>`
+          : e[1] === 1 ? `<span class="wp-tag freqr">${esc(App.t("wp_common"))}</span>`
+          : `<span class="wp-tag freqr">${esc(App.t("wp_rare"))}</span>`;
+        const note = e[2] ? `<div class="wp-note">${esc(lang === "fr" ? e[2] : e[3])}</div>` : "";
+        return `<div class="wp-krow"><div class="wp-kch"><span class="wp-tag ${type}">${type === "on" ? "音" : "訓"}</span></div>
+          <div class="wp-kmain"><b>${esc(e[0])}</b>${fTag}${note}</div></div>`;
+      }).join("")).join("");
+    const sents = Engine.sentencesWith([ch], true);
+    c.innerHTML = `<div class="kj-detail">
+        <div class="kj-big">${esc(ch)}</div>
+        <div class="kj-mean">${esc(meta[lang])}</div>
+        <div class="wp-kanji" style="border:none">${rows}</div>
+      </div>
+      <div class="card-title" style="margin-top:6px">${esc(App.t("kj_in_sent"))} · ${esc(App.t("kj_sentences").replace("{n}", sents.length))}</div>
+      <div id="kj-sents"></div>
+      <button class="btn ghost" id="kj-back" style="width:100%;margin-top:8px">← ${esc(App.t("back"))}</button>`;
+    const box = document.getElementById("kj-sents");
+    if (!sents.length) {
+      box.innerHTML = `<div class="lr-sub" style="padding:10px 2px">${esc(App.t("kj_none_yet"))}</div>`;
+    } else {
+      for (const s of sents.slice(0, 40)) {
+        const parsed = Parse.sentence(s.dsl);
+        const row = document.createElement("div");
+        row.className = "lib-row";
+        const main = document.createElement("div");
+        main.className = "lr-main";
+        main.appendChild(jp(parsed, s.gp));
+        const tr = document.createElement("div");
+        tr.className = "lr-sub";
+        tr.textContent = s[lang];
+        main.appendChild(tr);
+        const play = document.createElement("button");
+        play.className = "audio-sm";
+        play.textContent = "🔊";
+        play.addEventListener("click", () => Voice.speak(parsed.surfK + "。", 0.85));
+        row.appendChild(main); row.appendChild(play);
+        box.appendChild(row);
+      }
+    }
+    document.getElementById("kj-back").addEventListener("click", render);
   }
 
   return { render };

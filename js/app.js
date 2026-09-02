@@ -1,5 +1,5 @@
 /* Kakibun — app shell: nav, home, i18n, boot. */
-const APP_VERSION = "1.0.0"; // keep in sync with sw.js VERSION
+const APP_VERSION = "1.1.0"; // keep in sync with sw.js VERSION
 const App = (() => {
   const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
   const $ = (id) => document.getElementById(id);
@@ -10,11 +10,12 @@ const App = (() => {
 
   /* ---------- navigation ---------- */
   function nav(to) {
-    ["home", "map", "library", "settings"].forEach(id => { $(id).hidden = id !== to; });
+    ["home", "map", "strengthen", "library", "settings"].forEach(id => { $(id).hidden = id !== to; });
     document.querySelectorAll(".nav-btn").forEach(b => b.classList.toggle("on", b.dataset.nav === to));
     WordPop.hide();
     if (to === "home") renderHome();
     if (to === "map") Journey.render();
+    if (to === "strengthen") Strengthen.render();
     if (to === "library") Library.render();
     if (to === "settings") Settings.render();
   }
@@ -22,9 +23,11 @@ const App = (() => {
   function applyLang() {
     $("nav-home").textContent = t("nav_home");
     $("nav-map").textContent = t("nav_map");
+    $("nav-strengthen").textContent = t("nav_strengthen");
     $("nav-library").textContent = t("nav_library");
     $("nav-settings").textContent = t("nav_settings");
     $("map-title").textContent = t("map_title");
+    $("str-title").textContent = t("str_title");
     $("lib-title").textContent = t("lib_title");
     $("set-title").textContent = t("set_title");
     renderHome();
@@ -54,7 +57,7 @@ const App = (() => {
     $("hero-day").textContent = "";
 
     $("stat-points").textContent = st.started;
-    $("stat-mastered").textContent = st.mastered;
+    $("stat-mastered").textContent = st.solid ? `${st.mastered}·${st.solid}🎖` : st.mastered;
     $("stat-sentences").textContent = st.unlockedSent;
     $("stat-kanji").textContent = Bridge.hasInfo() ? Bridge.learnedCount() : "—";
     $("stat-points-l").textContent = t("stat_points");
@@ -73,6 +76,24 @@ const App = (() => {
       $("due-list").querySelectorAll(".due-row").forEach(el =>
         el.addEventListener("click", () => Session.practice(el.dataset.gp)));
     } else dueCard.hidden = true;
+
+    // new kanji arrived from Kakikana → offer to practise them in known grammar
+    const nk = Engine.newKanji();
+    const nkCard = $("newkanji-card");
+    if (nk.length) {
+      const lit = Engine.sentencesWith(nk, true).length;
+      nkCard.hidden = false;
+      $("newkanji-title").textContent = t("newkanji_title");
+      $("newkanji-chars").textContent = nk.slice(0, 12).join(" ");
+      // Nothing to drill yet if these kanji only appear in grammar he hasn't
+      // reached — say so plainly instead of offering an empty session.
+      $("newkanji-body").textContent = lit
+        ? t("newkanji_body").replace("{n}", lit)
+        : t("newkanji_soon");
+      $("newkanji-go").textContent = t("newkanji_go");
+      $("newkanji-go").hidden = lit === 0;
+      $("newkanji-later").textContent = lit ? t("newkanji_later") : t("newkanji_ok");
+    } else nkCard.hidden = true;
 
     // Kakikana banner
     const banner = $("kakikana-banner");
@@ -136,6 +157,23 @@ const App = (() => {
       if (e.target.files[0]) handleImportFile(e.target.files[0]);
       e.target.value = "";
     });
+    $("newkanji-go").addEventListener("click", () => Session.kanjiDebut(Engine.newKanji()));
+    $("newkanji-later").addEventListener("click", () => { Engine.clearNewKanji(); renderHome(); });
+
+    // Kakikana lives on the same origin, so its progress can change while this
+    // app is merely backgrounded — re-read whenever we come back to the front.
+    const recheck = () => {
+      if (document.hidden) return;
+      const r = Bridge.refresh(Engine.state());
+      if (r.changed) {
+        Engine.save();
+        if (r.fresh.length) toast(t("import_ok").replace("{n}", Bridge.learnedCount()));
+        if ($("session").hidden) renderHome();
+      }
+    };
+    document.addEventListener("visibilitychange", recheck);
+    window.addEventListener("focus", recheck);
+
     renderHome();
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("sw.js").catch(() => {});
