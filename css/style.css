@@ -207,8 +207,12 @@ ruby rt{font-size:.55em;color:var(--ink2)}
 .les-tip{font-size:.8rem;color:var(--ink2);text-align:center;margin-top:10px}
 
 /* word popup */
+/* Centred with auto margins, NOT left:50% + translateX(-50%): the `rise`
+   animation ends on `transform:none`, which would wipe out a centring
+   transform and make the popup fly in from the right at half width. */
 .wordpop{
-  position:fixed;left:50%;transform:translateX(-50%);bottom:calc(80px + env(safe-area-inset-bottom));
+  position:fixed;left:0;right:0;margin:0 auto;
+  bottom:calc(80px + env(safe-area-inset-bottom));
   width:min(92vw,440px);background:#fff;border-radius:16px;box-shadow:0 8px 30px rgba(40,25,10,.25);
   padding:14px 16px;z-index:80;animation:rise .2s;
 }

@@ -51,7 +51,11 @@ const WordPop = (() => {
       <div class="wp-head"><span class="wp-word">${esc(tok.surfK != null ? tok.surfK : tok.surfR)}</span>
       <span class="wp-read">${esc(tok.surfR)}</span></div>
       <div class="wp-gloss">${esc(gloss)}</div>${formLine}${noteLine}${kanjiHtml}`);
-    Voice.speak(tok.surfK != null ? tok.surfK : tok.surfR, 0.9);
+    // Speak the KANA reading, never the kanji surface: given an isolated kanji
+    // a TTS engine falls back to its ON reading (雨 → «u», 私 → «shi») instead
+    // of the reading this word actually uses. Sentences still use the kanji
+    // surface, where surrounding context disambiguates correctly.
+    Voice.speak(tok.surfR, 0.9);
   }
 
   function showParticle(tok) {

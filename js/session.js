@@ -341,6 +341,24 @@ const Session = (() => {
   }
 
   /* ---------- transform ---------- */
+  /* Name the target form WITHOUT printing it. The word-popup labels spell the
+   * form out ("passée (でした)") because there they EXPLAIN it — as a quiz
+   * prompt that is the answer, so strip the parenthetical and, if the result
+   * still contains the answer, fall back to the grammar point's own name. */
+  function formPrompt(to, g, answerR) {
+    const lang = App.lang();
+    const key = "form_" + to;
+    let label = App.t(key);
+    if (label === key) label = g.name[lang];
+    label = label.replace(/[（(][^）)]*[）)]/g, "").replace(/\s+/g, " ").trim();
+    if (!label || (answerR && label.indexOf(answerR) >= 0)) {
+      label = g.name[lang];
+      if (answerR && label.indexOf(answerR) >= 0) label = g.pat;
+      if (answerR && label.indexOf(answerR) >= 0) label = App.t("kind_transform");
+    }
+    return label;
+  }
+
   function showTransform(item) {
     const sent = SENTENCES[item.sent];
     const parsed = Parse.sentence(sent.dsl);
@@ -370,9 +388,20 @@ const Session = (() => {
       } catch (e) {}
     }
     const d = dispOpts();
-    const show = (cc) => segHtml({ type: "w", lex: tok.lex, form: null, surfK: cc.k, surfR: cc.r }, d);
+    // The copula on its own ("です → ?") is a floating suffix; show the noun it
+    // attaches to in the sentence so the drill reads as real Japanese.
+    let ctxTok = null;
+    if (tok.lex.pos === "cop") {
+      const ti = parsed.toks.indexOf(tok);
+      const prev = ti > 0 ? parsed.toks[ti - 1] : null;
+      if (prev && prev.type === "w") ctxTok = prev;
+    }
+    const show = (cc) => {
+      const main = segHtml({ type: "w", lex: tok.lex, form: null, surfK: cc.k, surfR: cc.r }, d);
+      return ctxTok ? segHtml(ctxTok, d) + main : main;
+    };
     const choices = distract.concat([answer]).sort(() => Math.random() - 0.5);
-    const fLabel = App.t("form_" + to) !== "form_" + to ? App.t("form_" + to) : g.pat;
+    const fLabel = formPrompt(to, g, answer.r);
     $("sess-body").innerHTML = `${kindLine("transform")}
       <div class="lesson"><div class="les-pat">${show(base)} →&nbsp;?</div>
       <div class="les-name">${esc(fLabel)}</div></div>
@@ -554,6 +583,6 @@ const Session = (() => {
     opts = {};
   }
 
-  return { start, practice, strengthen, kanjiDebut, exam, close,
+  return { start, practice, strengthen, kanjiDebut, exam, close, formPrompt,
            _debug: () => ({ item: curItem, parsed: curParsed, idx, items, opts }) };
 })();
