@@ -9,7 +9,7 @@ const Session = (() => {
 
   let items = [], idx = 0, combo = 0, bestCombo = 0, score = 0, total = 0;
   let events = [], firstTry = true, curParsed = null, curItem = null, curCtx = null;
-  let opts = {}, results = [];
+  let opts = {}, results = [], curBad = [];
 
   const isExam = () => !!opts.exam;
 
@@ -37,6 +37,12 @@ const Session = (() => {
       return `<span class="tok prt pick" data-i="${i}">${esc(o.swap.surf)}</span>`;
     if (o.pick === "p" && tok.type === "p")
       return `<span class="tok prt pick" data-i="${i}">${esc(tok.surfR)}</span>`;
+    if (o.kfill && o.kfill.i === i && tok.surfK != null) {
+      // the word stays visible so its shape is a clue — one character is gone
+      const html = [...tok.surfK].map((c, k) => k === o.kfill.ci
+        ? `<span class="kf-blank">＿</span>` : esc(c)).join("");
+      return `<span class="tok" data-i="${i}">${html}</span>`;
+    }
     let inner = segHtml(tok, d);
     if (o.target && o.target.i === i) {
       const ch = o.target.ch;
@@ -44,7 +50,8 @@ const Session = (() => {
         .replace(esc(ch), `<span class="rk">${esc(ch)}</span>`);
       return `<span class="tok" data-i="${i}">${inner}</span>`;
     }
-    const cls = "tok tap" + (tok.type === "p" ? " prt" : "");
+    const cls = "tok tap" + (tok.type === "p" ? " prt" : "")
+      + (o.bad && o.bad.indexOf(i) >= 0 ? " bad" : "");
     return `<span class="${cls}" data-i="${i}">${inner}</span>`;
   }
 
@@ -95,12 +102,17 @@ const Session = (() => {
       <div class="fb-jp"></div>
       ${sent ? `<div class="translation">${esc(sent[lang])}</div>` : ""}
       ${!isExam() && sent && sent.note ? `<div class="why"><div class="why-t">💡</div>${esc(sent.note[lang])}</div>` : ""}
+      ${curBad.length && ok ? `<div class="fb-expl">${esc(App.t("speak_watch"))} <b>${
+          curBad.map(i => esc(parsed.toks[i].surfK != null ? parsed.toks[i].surfK : parsed.toks[i].surfR)).join(" · ")}</b></div>` : ""}
       ${isExam() ? "" : (extraHtml || "")}`;
-    box.querySelector(".fb-jp").innerHTML = jpHtml(parsed);
+    box.querySelector(".fb-jp").innerHTML = jpHtml(parsed, { bad: curBad });
     $("sess-body").appendChild(box);
     bindTaps(box, parsed, gpId);
 
-    if (!isExam()) {
+    if (opts.free) {
+      // library read-aloud practice: feedback only, never touches scheduling
+      Engine.recordStats(curCtx, ok);
+    } else if (!isExam()) {
       const ev = Engine.record(gpId, ok, curCtx);
       Engine.noteSeen(curItem.sent);
       if (ev === "mastered") {
@@ -340,6 +352,56 @@ const Session = (() => {
     }));
   }
 
+  /* ---------- fill in the missing kanji ---------- */
+  function showKanjiFill(item) {
+    const sent = SENTENCES[item.sent];
+    const parsed = Parse.sentence(sent.dsl);
+    curParsed = parsed;
+    const lang = App.lang();
+    const d = dispOpts();
+    let cands = Engine.kanjiFillCandidates(sent, d.showAll);
+    if (item.focus) {
+      const f = cands.filter(c => item.focus.indexOf(c.ch) >= 0);
+      if (f.length) cands = f;
+    }
+    const pool = Engine.learnedKanjiPool(d.showAll);
+    if (!cands.length || pool.length < 4) return showTiles(item, true);
+    const c = cands[Math.floor(Math.random() * cands.length)];
+    const info = KANJI_INFO[c.ch];
+    curCtx = { mode: "kanjifill" };
+    const choices = Engine.kanjiDistractors(c.ch, pool, 3).concat([c.ch])
+      .sort(() => Math.random() - 0.5);
+    $("sess-body").innerHTML = `${kindLine("kanjifill")}
+      <div id="kf-jp"></div>
+      ${isExam() ? "" : `<div class="translation">${esc(sent[lang])}</div>`}
+      <div class="kf-read">${esc(c.reading)}</div>
+      <div class="mic-hint">${esc(App.t("kanjifill_q"))}</div>
+      <div class="choices" id="kf-choices">${choices.map(k =>
+        `<button class="choice kf-choice" data-k="${esc(k)}">${esc(k)}</button>`).join("")}</div>`;
+    $("kf-jp").innerHTML = jpHtml(parsed, { kfill: { i: c.tokIdx, ci: c.ci },
+                                            d: Object.assign({}, d, { furi: "none" }) });
+    foot("");
+    let done = false;
+    $("kf-choices").querySelectorAll(".choice").forEach(b => b.addEventListener("click", () => {
+      if (done) return;
+      const ok = b.dataset.k === c.ch;
+      if (!ok && !isExam()) { b.classList.add("ko"); firstTry = false; Sfx.bad(); return; }
+      done = true;
+      b.classList.add(ok ? "ok" : "ko");
+      $("kf-choices").querySelectorAll(".choice").forEach(x => {
+        if (x !== b) x.classList.add(x.dataset.k === c.ch ? "ok" : "dim");
+      });
+      const rt = Parse.readingType(c.ch, c.reading);
+      const tag = rt ? (rt.type === "on" ? "音 " + App.t("wp_on") : "訓 " + App.t("wp_kun")) : "";
+      const note = rt && rt.note ? `<br>${esc(rt.note[lang])}` : "";
+      const why = `<div class="why"><div class="why-t">${esc(c.ch)} — ${esc(info[lang])} ${esc(tag)}</div>
+        ${esc(App.t("kanjifill_why").replace("{w}", parsed.toks[c.tokIdx].surfK)
+          .replace("{r}", c.reading))}${note}</div>`;
+      tts(parsed);
+      feedback(ok && firstTry, parsed, item.gp, why);
+    }));
+  }
+
   /* ---------- transform ---------- */
   /* Name the target form WITHOUT printing it. The word-popup labels spell the
    * form out ("passée (でした)") because there they EXPLAIN it — as a quiz
@@ -455,13 +517,24 @@ const Session = (() => {
       hint.textContent = App.t("speak_listening");
       Voice.listen(
         (alts) => {
-          const ok = alts.some(a => Voice.match(a, parsed.surfK, parsed.surfR));
-          heard.textContent = App.t("speak_heard") + " " + (alts[0] || "");
+          // score every alternative the recogniser offers, keep the kindest
+          let best = null;
+          for (const a of alts) {
+            const g = Voice.grade(a, parsed);
+            if (!best || (g.ok && !best.g.ok) || (g.ok === best.g.ok && g.score > best.g.score))
+              best = { g, text: a };
+          }
+          heard.textContent = App.t("speak_heard") + " " + (best ? best.text : "");
           listening = false; mic.classList.remove("rec");
-          if (ok) { finished = true; feedback(firstTry, parsed, item.gp); }
+          if (!best) return;
+          curBad = best.g.bad;
+          // show WHERE it slipped, whether or not the attempt passed
+          $("s-jp").innerHTML = jpHtml(parsed, { bad: curBad });
+          bindTaps($("s-jp"), parsed, item.gp);
+          if (best.g.ok) { finished = true; feedback(firstTry, parsed, item.gp); }
           else {
             tries++; firstTry = false; Sfx.bad();
-            hint.textContent = App.t("speak_close");
+            hint.textContent = App.t("speak_close") + " (" + Math.round(best.g.score * 100) + " %)";
             if (tries >= 2 || isExam()) {
               finished = true;
               setTimeout(() => feedback(false, parsed, item.gp), 900);
@@ -483,7 +556,7 @@ const Session = (() => {
   /* ---------- flow ---------- */
   function render() {
     WordPop.hide();
-    firstTry = true; curCtx = null;
+    firstTry = true; curCtx = null; curBad = [];
     setBar();
     const it = items[idx];
     curItem = it;
@@ -497,6 +570,7 @@ const Session = (() => {
       case "speak": return showSpeak(it);
       case "spot": return showSpot(it);
       case "reading": return showReading(it);
+      case "kanjifill": return showKanjiFill(it);
       default: return showTiles(it, false);
     }
   }
@@ -529,6 +603,7 @@ const Session = (() => {
 
   /* speak needs a mic + the setting on; otherwise fall back to tiles */
   function fixModes(list) {
+    if (opts.noVoiceFallback) return list;
     const ok = Voice.available() && Engine.state().settings.voiceIn;
     return list.map(it => (!ok && it.kind === "speak") ? Object.assign({}, it, { kind: "tiles" }) : it);
   }
@@ -566,6 +641,13 @@ const Session = (() => {
     start(list, { debut: true });
   }
 
+  /* Library mic: read one sentence aloud, feedback only, no SRS side effects. */
+  function readAloud(sentIdx, gpId) {
+    if (!Voice.available()) { App.toast(App.t("speak_no_sr")); return; }
+    start([{ kind: "speak", gp: gpId, sent: sentIdx }],
+          { free: true, back: "library", noVoiceFallback: true });
+  }
+
   function exam(arcId) {
     const list = Exam.build(arcId);
     if (!list.length) return;
@@ -579,10 +661,11 @@ const Session = (() => {
     App.renderHome();
     if (opts.back === "map") { Journey.render(); App.nav("map"); }
     else if (opts.back === "strengthen") { Strengthen.render(); App.nav("strengthen"); }
+    else if (opts.back === "library") { App.nav("library"); }
     else Journey.render();
     opts = {};
   }
 
-  return { start, practice, strengthen, kanjiDebut, exam, close, formPrompt,
+  return { start, practice, strengthen, kanjiDebut, exam, readAloud, close, formPrompt,
            _debug: () => ({ item: curItem, parsed: curParsed, idx, items, opts }) };
 })();

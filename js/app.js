@@ -1,5 +1,5 @@
 /* Kakibun — app shell: nav, home, i18n, boot. */
-const APP_VERSION = "1.1.2"; // keep in sync with sw.js VERSION
+const APP_VERSION = "1.2.0"; // keep in sync with sw.js VERSION
 const App = (() => {
   const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
   const $ = (id) => document.getElementById(id);
@@ -142,6 +142,39 @@ const App = (() => {
     reader.readAsText(file);
   }
 
+  /* ---------- backup ---------- */
+  function exportSave() {
+    try {
+      const blob = new Blob([JSON.stringify(Engine.exportSave(), null, 1)],
+                            { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "kakibun-" + Engine.today() + ".json";
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+      toast(t("backup_ok"));
+    } catch (e) { toast(t("restore_bad")); }
+  }
+
+  function handleRestoreFile(file) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      let obj = null;
+      try { obj = JSON.parse(reader.result); } catch (e) { return toast(t("restore_bad")); }
+      if (!obj || obj.app !== "kakibun") return toast(t("restore_bad"));
+      if (!confirm(t("restore_confirm"))) return;
+      if (Engine.importSave(obj)) {
+        Bridge.load(Engine.state());
+        Engine.save();
+        toast(t("restore_ok"));
+        applyLang();
+      } else toast(t("restore_bad"));
+    };
+    reader.readAsText(file);
+  }
+
   /* ---------- boot ---------- */
   function boot() {
     Engine.load();
@@ -155,6 +188,10 @@ const App = (() => {
     $("kakikana-import-btn").addEventListener("click", () => $("import-file").click());
     $("import-file").addEventListener("change", (e) => {
       if (e.target.files[0]) handleImportFile(e.target.files[0]);
+      e.target.value = "";
+    });
+    $("restore-file").addEventListener("change", (e) => {
+      if (e.target.files[0]) handleRestoreFile(e.target.files[0]);
       e.target.value = "";
     });
     $("newkanji-go").addEventListener("click", () => Session.kanjiDebut(Engine.newKanji()));
@@ -182,5 +219,6 @@ const App = (() => {
 
   document.addEventListener("DOMContentLoaded", boot);
 
-  return { t, lang, pickOk, nav, renderHome, applyLang, toast, toastMaster, VERSION: APP_VERSION };
+  return { t, lang, pickOk, nav, renderHome, applyLang, toast, toastMaster,
+           exportSave, VERSION: APP_VERSION };
 })();

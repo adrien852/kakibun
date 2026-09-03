@@ -46,6 +46,42 @@ reading is the kanji's main one or a rare one.
   inside grammar you already know. Sentence picking also favours them for a while, and
   the library's kanji grid now opens onto every sentence where you meet that kanji.
 
+## Fixes since 1.1.0
+
+- **1.1.1** — the word popup flew in from the right at half width: it was centred with
+  `left:50% + translateX(-50%)`, but the `rise` animation ends on `transform:none`,
+  wiping the centring for the animation's duration. It centres with auto margins now,
+  so the transform belongs to the animation alone.
+- **1.1.2** — tapping a word spoke the *kanji*, and TTS reads an isolated kanji with its
+  ON reading (雨 → « u », 私 → « shi »). The popup now speaks the kana reading; sentence
+  playback still uses the kanji surface, where context disambiguates. Also: transform
+  prompts printed the answer — the popup labels spell the form out ("passée (でした)")
+  because there they explain it, which as a quiz prompt gave the game away. Prompts are
+  now stripped of the form itself and guarded against ever containing the answer, and the
+  copula is shown attached to its noun (先生です → ?) instead of floating alone.
+
+## What's in v1.2
+
+- **Kanji readings now always explain themselves.** Every reading worth knowing (186 of
+  them) carries an example word *and* its translation — かあ → お母さん = maman, すい →
+  水曜日 = mercredi. Readings used on their own restate the meaning (水 = l'eau); ones
+  confined to compounds say so (に → presque uniquement dans 日本 = le Japon). Rare
+  readings stay flagged rare without the noise.
+- **New exercise: which kanji is missing?** One kanji is blanked inside a word, the
+  word's reading is given, and you choose among four kanji — all of them ones you've
+  learned in Kakikana, with distractors that deliberately share a reading with the answer
+  so the sound alone doesn't settle it.
+- **Read-aloud is tolerant and specific.** A reading passes at 70 % of the sentence, or on
+  a single slipped word in a longer one — and either way the words you missed are
+  underlined in red, so you learn where you went wrong instead of just "not quite".
+- **Read aloud from the library.** Every sentence row has a 🎤 next to its 🔊. This is free
+  practice: it never affects review scheduling.
+- **Back up your progress.** Réglages → Sauvegarder ma progression exports a JSON file and
+  restores it, so clearing site data is no longer fatal and progress can move between
+  devices.
+- Library drill-downs scroll back to the top, and a sentence-final 。 no longer wraps onto
+  a line of its own.
+
 ## Release checklist
 
 Bump `VERSION` in `sw.js` **and** `APP_VERSION` in `js/app.js` together.

@@ -34,6 +34,8 @@ const Exam = (() => {
       if (Engine.spotCandidates(s).length) wheel.push("spot");
       if (g.tf && caps.tf) wheel.push("transform");
       if (Engine.readingCandidates(s, showAll).length) wheel.push("reading");
+      if (Engine.kanjiFillCandidates(s, showAll).length &&
+          Engine.learnedKanjiPool(showAll).length >= 4) wheel.push("kanjifill");
       wheel.push("tiles");
       const kind = wheel[slot % wheel.length];
       return { kind, gp: gpId, sent: s.i, exam: true };

@@ -8,15 +8,54 @@ const Library = (() => {
     furi: Engine.state().settings.furi
   });
 
+  /* Every drill-down replaces the whole panel, so the viewport has to go back
+   * to the top or you land mid-way down the new screen. */
+  const toTop = () => window.scrollTo({ top: 0, behavior: "auto" });
+
+  /* One sentence row: tap words for the popup, 🔊 to hear it, 🎤 to read it aloud.
+   * The mic is FREE practice — it never touches SRS scheduling. */
+  function sentRow(s, gpId) {
+    const lang = App.lang();
+    const parsed = Parse.sentence(s.dsl);
+    const row = document.createElement("div");
+    row.className = "lib-row";
+    const main = document.createElement("div");
+    main.className = "lr-main";
+    main.appendChild(jp(parsed, gpId));
+    const tr = document.createElement("div");
+    tr.className = "lr-sub";
+    tr.textContent = s[lang];
+    main.appendChild(tr);
+    const btns = document.createElement("div");
+    btns.className = "lr-btns";
+    const play = document.createElement("button");
+    play.className = "audio-sm";
+    play.textContent = "\u{1F50A}";
+    play.title = App.t("replay");
+    play.addEventListener("click", () => Voice.speak(parsed.surfK + "\u3002", 0.85));
+    const mic = document.createElement("button");
+    mic.className = "audio-sm mic";
+    mic.textContent = "\u{1F3A4}";
+    mic.title = App.t("lib_speak");
+    mic.addEventListener("click", () => Session.readAloud(s.i, gpId));
+    btns.appendChild(play); btns.appendChild(mic);
+    row.appendChild(main); row.appendChild(btns);
+    return row;
+  }
+
   function jp(parsed, gpId) {
     const div = document.createElement("div");
     div.className = "lib-sent jp";
+    const last = parsed.toks.length - 1;
     div.innerHTML = parsed.toks.map((t, i) => {
-      if (t.type === "punct") return `<span class="tok">${esc(t.surfR)}</span>`;
+      // the final 。 rides along inside the last word: on these narrow rows it
+      // would otherwise wrap onto a line of its own
+      const tail = i === last ? "。" : "";
+      if (t.type === "punct") return `<span class="tok">${esc(t.surfR)}${tail}</span>`;
       const segs = Bridge.display(t, dispOpts());
       const inner = segs.map(s => s.rt !== undefined ? `<ruby>${esc(s.t)}<rt>${esc(s.rt)}</rt></ruby>` : esc(s.t)).join("");
-      return `<span class="tok tap${t.type === "p" ? " prt" : ""}" data-i="${i}">${inner}</span>`;
-    }).join("") + `<span class="tok">。</span>`;
+      return `<span class="tok tap${t.type === "p" ? " prt" : ""}" data-i="${i}">${inner}${tail}</span>`;
+    }).join("");
     div.querySelectorAll(".tok.tap").forEach(el =>
       el.addEventListener("click", () => WordPop.show(parsed.toks[+el.dataset.i], gpId)));
     return div;
@@ -32,6 +71,7 @@ const Library = (() => {
     </div><div id="lib-content"></div>`;
     body.innerHTML = html;
     body.querySelectorAll(".lib-tab").forEach(b => b.addEventListener("click", () => { tab = b.dataset.t; render(); }));
+    toTop();
     const c = document.getElementById("lib-content");
     if (tab === "grammar") renderGrammar(c, lang);
     else if (tab === "sent") renderSentences(c, lang);
@@ -61,6 +101,7 @@ const Library = (() => {
   }
 
   function detail(gpId) {
+    toTop();
     const lang = App.lang();
     const g = GRAMMAR.find(x => x.id === gpId);
     const c = document.getElementById("lib-content");
@@ -72,24 +113,7 @@ const Library = (() => {
       <button class="btn ghost" id="lib-back" style="width:100%;margin-top:8px">←</button>`;
     c.innerHTML = html;
     const sents = document.getElementById("lib-sents");
-    for (const s of Engine.sentencesFor(gpId)) {
-      const parsed = Parse.sentence(s.dsl);
-      const row = document.createElement("div");
-      row.className = "lib-row";
-      const main = document.createElement("div");
-      main.className = "lr-main";
-      main.appendChild(jp(parsed, gpId));
-      const tr = document.createElement("div");
-      tr.className = "lr-sub";
-      tr.textContent = s[lang];
-      main.appendChild(tr);
-      const play = document.createElement("button");
-      play.className = "audio-sm";
-      play.textContent = "🔊";
-      play.addEventListener("click", () => Voice.speak(parsed.surfK + "。", 0.85));
-      row.appendChild(main); row.appendChild(play);
-      sents.appendChild(row);
-    }
+    for (const s of Engine.sentencesFor(gpId)) sents.appendChild(sentRow(s, gpId));
     document.getElementById("lib-practice").addEventListener("click", () => Session.practice(gpId));
     document.getElementById("lib-back").addEventListener("click", render);
   }
@@ -99,24 +123,7 @@ const Library = (() => {
     const unlocked = SENTENCES.filter(s => GRAMMAR.findIndex(g => g.id === s.gp) < cur);
     if (!unlocked.length) { c.innerHTML = `<div class="lr-sub" style="padding:20px;text-align:center">${esc(App.t("lib_no_sent"))}</div>`; return; }
     c.innerHTML = `<div class="lr-sub" style="margin-bottom:10px">${esc(App.t("lib_sent_count").replace("{n}", unlocked.length))}</div>`;
-    for (const s of unlocked.slice().reverse()) {
-      const parsed = Parse.sentence(s.dsl);
-      const row = document.createElement("div");
-      row.className = "lib-row";
-      const main = document.createElement("div");
-      main.className = "lr-main";
-      main.appendChild(jp(parsed, s.gp));
-      const tr = document.createElement("div");
-      tr.className = "lr-sub";
-      tr.textContent = s[lang];
-      main.appendChild(tr);
-      const play = document.createElement("button");
-      play.className = "audio-sm";
-      play.textContent = "🔊";
-      play.addEventListener("click", () => Voice.speak(parsed.surfK + "。", 0.85));
-      row.appendChild(main); row.appendChild(play);
-      c.appendChild(row);
-    }
+    for (const s of unlocked.slice().reverse()) c.appendChild(sentRow(s, s.gp));
   }
 
   function renderKanji(c, lang) {
@@ -137,6 +144,7 @@ const Library = (() => {
   /* One kanji: readings ranked by how common they are, then every unlocked
    * sentence where you actually meet it. */
   function kanjiDetail(ch) {
+    toTop();
     const lang = App.lang();
     const meta = KANJI_INFO[ch];
     const c = document.getElementById("lib-content");
@@ -162,24 +170,7 @@ const Library = (() => {
     if (!sents.length) {
       box.innerHTML = `<div class="lr-sub" style="padding:10px 2px">${esc(App.t("kj_none_yet"))}</div>`;
     } else {
-      for (const s of sents.slice(0, 40)) {
-        const parsed = Parse.sentence(s.dsl);
-        const row = document.createElement("div");
-        row.className = "lib-row";
-        const main = document.createElement("div");
-        main.className = "lr-main";
-        main.appendChild(jp(parsed, s.gp));
-        const tr = document.createElement("div");
-        tr.className = "lr-sub";
-        tr.textContent = s[lang];
-        main.appendChild(tr);
-        const play = document.createElement("button");
-        play.className = "audio-sm";
-        play.textContent = "🔊";
-        play.addEventListener("click", () => Voice.speak(parsed.surfK + "。", 0.85));
-        row.appendChild(main); row.appendChild(play);
-        box.appendChild(row);
-      }
+      for (const s of sents.slice(0, 40)) box.appendChild(sentRow(s, s.gp));
     }
     document.getElementById("kj-back").addEventListener("click", render);
   }

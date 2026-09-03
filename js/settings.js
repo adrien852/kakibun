@@ -29,6 +29,14 @@ const Settings = (() => {
         <div class="set-d">${esc(App.t("set_allkanji_d"))}</div></div>${sw("set-allkanji", s.showAllKanji)}</div>
     </div>
     <div class="card">
+      <div class="set-row"><div><div class="set-l">${esc(App.t("set_backup"))}</div>
+        <div class="set-d">${esc(App.t("set_backup_d"))}</div></div>
+        <div style="display:flex;gap:6px">
+          <button class="btn small" id="set-export">${esc(App.t("set_export"))}</button>
+          <button class="btn small" id="set-restore">${esc(App.t("set_restore"))}</button>
+        </div></div>
+    </div>
+    <div class="card">
       <div class="set-row"><div><div class="set-l">${esc(App.t("set_kakikana"))}</div>
         <div class="set-d">${esc(kkLine)}</div></div>
         <button class="btn small" id="set-import">${esc(App.t("set_import"))}</button></div>
@@ -54,6 +62,9 @@ const Settings = (() => {
     toggle("set-allkanji", "showAllKanji");
     document.getElementById("set-import").addEventListener("click", () =>
       document.getElementById("import-file").click());
+    document.getElementById("set-export").addEventListener("click", () => App.exportSave());
+    document.getElementById("set-restore").addEventListener("click", () =>
+      document.getElementById("restore-file").click());
     document.getElementById("set-reset").addEventListener("click", () => {
       if (confirm(App.t("set_reset_confirm"))) {
         localStorage.removeItem("kakibun.state.v1");

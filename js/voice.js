@@ -68,6 +68,100 @@ const Voice = (() => {
     return false;
   }
 
+  /* ---------- word-level grading ----------
+   * A whole sentence is a lot to get perfectly right, and an all-or-nothing
+   * verdict tells you nothing about WHERE you slipped. So: align the heard
+   * string against the expected one character by character (Needleman–Wunsch
+   * with a traceback), then attribute each expected character to the token it
+   * came from. A token counts as mispronounced when under half of its
+   * characters survived the alignment.
+   *
+   * PASS_RATIO 0.7, or a single wrong word in a sentence of >= MIN_TOKENS_FOR_ONE_SLIP.
+   */
+  const PASS_RATIO = 0.7;
+  const MIN_TOKENS_FOR_ONE_SLIP = 4;
+  /* A word counts as mispronounced below this share of surviving characters.
+   * 0.8 rather than 0.5 because Japanese words share so many tails — 行きます
+   * and 来ます already agree on ます, and 学校 / 大学 on 学. */
+  const TOKEN_OK_RATIO = 0.8;
+
+  /* Expected characters, each tagged with its token index. */
+  function charMap(parsed, useKanji) {
+    const chars = [], owner = [];
+    parsed.toks.forEach((t, i) => {
+      if (t.type === "punct") return;
+      const surf = strip(useKanji && t.surfK != null ? t.surfK : t.surfR);
+      for (const c of surf) { chars.push(c); owner.push(i); }
+    });
+    return { chars, owner };
+  }
+
+  /* → { matched: [bool per expected char], score } */
+  function align(heardChars, expChars) {
+    const n = heardChars.length, m = expChars.length;
+    if (!m) return { matched: [], score: 0 };
+    const MATCH = 2, MIS = -1, GAP = -1;
+    // (n+1) x (m+1) score matrix + traceback
+    const S = new Int32Array((n + 1) * (m + 1));
+    const T = new Uint8Array((n + 1) * (m + 1)); // 1 diag, 2 up (skip heard), 3 left (skip expected)
+    const at = (i, j) => i * (m + 1) + j;
+    for (let i = 1; i <= n; i++) { S[at(i, 0)] = i * GAP; T[at(i, 0)] = 2; }
+    for (let j = 1; j <= m; j++) { S[at(0, j)] = j * GAP; T[at(0, j)] = 3; }
+    for (let i = 1; i <= n; i++) {
+      for (let j = 1; j <= m; j++) {
+        const d = S[at(i - 1, j - 1)] + (heardChars[i - 1] === expChars[j - 1] ? MATCH : MIS);
+        const u = S[at(i - 1, j)] + GAP;
+        const l = S[at(i, j - 1)] + GAP;
+        let best = d, tb = 1;
+        if (u > best) { best = u; tb = 2; }
+        if (l > best) { best = l; tb = 3; }
+        S[at(i, j)] = best; T[at(i, j)] = tb;
+      }
+    }
+    const matched = new Array(m).fill(false);
+    let i = n, j = m;
+    while (i > 0 || j > 0) {
+      const tb = T[at(i, j)];
+      if (tb === 1) {
+        if (heardChars[i - 1] === expChars[j - 1]) matched[j - 1] = true;
+        i--; j--;
+      } else if (tb === 2) i--;
+      else j--;
+    }
+    const hits = matched.reduce((a, b) => a + (b ? 1 : 0), 0);
+    return { matched, score: hits / m };
+  }
+
+  /* grade(heard, parsed) → { ok, score, bad:[tokenIdx], exact } */
+  function grade(heard, parsed) {
+    const h = strip(heard);
+    if (!h) return { ok: false, score: 0, bad: [], exact: false, empty: true };
+    // A near-perfect reading passes outright, but we still align it so a single
+    // slipped particle gets pointed out rather than silently waved through.
+    const fast = match(heard, parsed.surfK, parsed.surfR);
+
+    const hc = [...h];
+    let best = null;
+    for (const useKanji of [true, false]) {
+      const { chars, owner } = charMap(parsed, useKanji);
+      const a = align(hc, chars);
+      if (!best || a.score > best.a.score) best = { a, owner, chars };
+    }
+    // per-token survival
+    const tally = {};
+    best.owner.forEach((tok, idx) => {
+      const t = tally[tok] || (tally[tok] = { hit: 0, n: 0 });
+      t.n++; if (best.a.matched[idx]) t.hit++;
+    });
+    const bad = Object.keys(tally)
+      .filter(k => tally[k].hit / tally[k].n < TOKEN_OK_RATIO)
+      .map(Number);
+    const nTok = Object.keys(tally).length;
+    const ok = fast || best.a.score >= PASS_RATIO ||
+               (bad.length <= 1 && nTok >= MIN_TOKENS_FOR_ONE_SLIP && best.a.score >= 0.5);
+    return { ok, score: best.a.score, bad, exact: fast && bad.length === 0, nTok };
+  }
+
   /* ---------- recognition ---------- */
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   const available = () => !!SR;
@@ -95,5 +189,5 @@ const Voice = (() => {
   }
   function cancel() { if (rec) { try { rec.abort(); } catch (e) {} rec = null; } }
 
-  return { speak, stop, match, listen, cancel, available, strip };
+  return { speak, stop, match, grade, listen, cancel, available, strip, PASS_RATIO };
 })();

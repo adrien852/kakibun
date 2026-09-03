@@ -149,6 +149,46 @@ const Engine = (() => {
     return out;
   }
 
+  /* ---------- fill in the missing kanji ----------
+   * Blank ONE kanji inside a word already displayed in kanji (i.e. every kanji
+   * in it is learned), show the word's reading, and choose the character.
+   * Every option must also be a learned kanji — an unfamiliar-looking distractor
+   * would be eliminated on sight rather than on knowledge. */
+  function learnedKanjiPool(showAll) {
+    const all = Object.keys(KANJI_INFO);
+    return showAll ? all : all.filter(ch => Bridge.isLearned(ch));
+  }
+
+  function kanjiFillCandidates(sent, showAll) {
+    const p = Parse.sentence(sent.dsl);
+    const out = [];
+    p.toks.forEach((tok, i) => {
+      if (tok.type !== "w" || tok.surfK == null) return;
+      if (!showAll && !Bridge.knowsAll(tok.surfK)) return;
+      [...tok.surfK].forEach((ch, ci) => {
+        if (!Parse.isKanji(ch) || !KANJI_INFO[ch]) return;
+        out.push({ tokIdx: i, ch, ci, reading: tok.surfR });
+      });
+    });
+    return out;
+  }
+
+  const readingsOf = (ch) => {
+    const k = KANJI_INFO[ch];
+    return k ? k.on.concat(k.kun).map(e => e[0]) : [];
+  };
+
+  /* Distractors: prefer kanji that SHARE a reading with the answer (so the sound
+   * alone doesn't settle it), then any other learned kanji. */
+  function kanjiDistractors(ch, pool, n) {
+    const mine = new Set(readingsOf(ch));
+    const others = pool.filter(k => k !== ch);
+    const near = others.filter(k => readingsOf(k).some(r => mine.has(r)));
+    const far = others.filter(k => near.indexOf(k) < 0);
+    return near.sort(() => Math.random() - 0.5)
+      .concat(far.sort(() => Math.random() - 0.5)).slice(0, n);
+  }
+
   /* ---------- spot-the-error ----------
    * Keyed by particle FUNCTION, not by particle, so every swap is genuinely
    * wrong for that role. は↔が is deliberately absent in both directions:
@@ -199,11 +239,17 @@ const Engine = (() => {
       if (caps.prt) { rot.push("cloze"); if (spotCandidates(sent).length) rot.push("spot"); }
       if (g.tf && caps.tf) rot.push("transform");
       rot.push("speak", "tiles");
-      if (readingCandidates(sent, state.settings.showAllKanji || !Bridge.hasInfo()).length) rot.push("reading");
+      const showAll = state.settings.showAllKanji || !Bridge.hasInfo();
+      if (readingCandidates(sent, showAll).length) rot.push("reading");
+      if (kanjiFillCandidates(sent, showAll).length && learnedKanjiPool(showAll).length >= 4)
+        rot.push("kanjifill");
     } else {
       if (caps.prt) rot.push("cloze");
       if (g.tf && caps.tf) rot.push("transform");
       rot.push("speak", "tiles");
+      const showAll2 = state.settings.showAllKanji || !Bridge.hasInfo();
+      if (p.enc >= 3 && kanjiFillCandidates(sent, showAll2).length &&
+          learnedKanjiPool(showAll2).length >= 4) rot.push("kanjifill");
       if (p.enc <= 1) return slot === 0 ? "tiles_read" : "tiles";
     }
     return rot[(p.enc + slot) % rot.length];
@@ -434,15 +480,35 @@ const Engine = (() => {
     });
   }
 
+  /* ---------- backup ----------
+   * The whole point is that clearing site data (or losing a phone) is no longer
+   * fatal, so the export carries the entire state verbatim. */
+  function exportSave() {
+    // deep copy: a live reference would keep changing under the caller, and a
+    // backup that mutates after you take it is not a backup
+    return { app: "kakibun", v: 1, date: new Date().toISOString(),
+             version: (typeof APP_VERSION !== "undefined" ? APP_VERSION : null),
+             state: JSON.parse(JSON.stringify(state)) };
+  }
+  function importSave(obj) {
+    if (!obj || obj.app !== "kakibun" || !obj.state || typeof obj.state !== "object") return false;
+    if (!obj.state.points || typeof obj.state.points !== "object") return false;
+    state = migrate(Object.assign(defaults(), obj.state));
+    save();
+    return true;
+  }
+
   const newKanji = () => (state.newKanji || []).slice();
   const clearNewKanji = () => { state.newKanji = []; save(); };
 
   return { load, save, state: () => state, point, currentIndex, isUnlocked, isLearned,
            duePoints, learningDue, sentencesFor, sentKanji, pickSentence, sentenceCaps,
-           readingCandidates, spotCandidates, modeFor, buildSession, buildStrengthen, buildKanjiDebut,
+           readingCandidates, spotCandidates, kanjiFillCandidates,
+           kanjiDistractors, learnedKanjiPool, modeFor, buildSession, buildStrengthen, buildKanjiDebut,
            record, recordStats, noteSeen, masteryProgress, streak, stats,
            arcPoints, arcUnlocked, hasStamp, stampCount, grandUnlocked, recordExam,
-           weakestPoints, statTable, sentencesWith, newKanji, clearNewKanji,
+           weakestPoints, statTable, sentencesWith, newKanji, clearNewKanji, today,
+           exportSave, importSave,
            EXAM_PASS, BOX_DAYS };
 })();
 if (typeof module !== "undefined") module.exports = { Engine };
