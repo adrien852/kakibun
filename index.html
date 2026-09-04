@@ -79,6 +79,13 @@
 <main id="settings" class="screen" hidden>
   <header class="top"><div class="brand" id="set-title"></div></header>
   <div id="set-body" class="set-body"></div>
+  <!-- games.js (KakiBridge) mounts itself here: #settings-extra is the first
+       selector it looks for, and living outside #set-body means Settings.render()
+       rebuilding its cards never wipes the panel. -->
+  <div id="settings-extra" class="set-body"></div>
+  <!-- version + reset render here so the destructive action stays last on the
+       page even with the games panel between. -->
+  <div id="set-tail" class="set-body"></div>
 </main>
 
 <!-- ============ SESSION (overlay) ============ -->
@@ -126,7 +133,9 @@
 <script src="js/map.js"></script>
 <script src="js/strengthen.js"></script>
 <script src="js/library.js"></script>
+<script src="js/sync.js"></script>
 <script src="js/settings.js"></script>
+<script src="js/games.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

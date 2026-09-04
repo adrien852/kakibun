@@ -79,6 +79,7 @@ const Exam = (() => {
     const lang = App.lang();
     const pct = Math.round(outcome.score / Math.max(1, outcome.total) * 100);
     if (outcome.passed) Sfx.master(); else Sfx.bad();
+    Sync.pushSoon();
 
     const missRows = results.filter(r => !r.ok).map(r => {
       const g = GRAMMAR.find(x => x.id === r.gp);

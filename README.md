@@ -98,8 +98,62 @@ reading is the kanji's main one or a rare one.
 - Reading and kanji-fill questions now only need *the character being asked about* to be
   learned rather than the whole word, which roughly doubles how many of them exist.
 
+## What's in v1.4
+
+- **Automatic sync with KakiBridge.** Réglages → *Synchronisation automatique*: paste a
+  relay address once and the save uploads itself — on open, at the end of a session or an
+  exam, after a Kakikana import, and when you leave the app — while words mined on the PC
+  come down the other way. An unchanged save is never re-uploaded, failures are silent
+  apart from the status line, and nothing about it can interrupt a lesson.
+- **The relay is in `sync/`.** A single Cloudflare Worker (`sync/worker.js`, free tier,
+  five minutes to set up) plus `sync/README.md`, which carries the setup, the wire
+  contract KakiBridge implements, and a no-cloud Tailscale alternative. That folder is
+  *not* part of the app: it isn't precached and `index.html` never loads it.
+
+Why a relay rather than talking to the PC directly: Kakibun is served over HTTPS, and an
+HTTPS page cannot fetch `http://192.168.1.x` — the browser blocks it as mixed content and
+no setting changes that. The two devices need a meeting point that speaks HTTPS.
+
+The channel is two boxes with **one writer each** — Kakibun writes `progress`, KakiBridge
+writes `mined` — so there is no merge and no conflict resolution, which is the part of a
+sync feature that is always subtly wrong. The address carries its own secret and lives
+only in each device's settings, never in the repo, and is stripped from the save before
+upload so it can't travel to the PC and back.
+
+## What's in v1.5
+
+- **« Mots des jeux ».** KakiBridge's `games.js` now lives in Kakibun: Réglages grows a
+  panel listing the words Yomitan saw while you played, ranked by how often you met them,
+  with a *Prioriser ces kanji* toggle. The file is **byte-identical to KakiBridge's copy**,
+  so the two never drift and its own test suite stays valid — all the adaptation is on the
+  Kakibun side: it mounts into `#settings-extra` (outside `#set-body`, so rebuilding the
+  settings cards can't wipe it), Kakibun exposes the global `t` it looks for so the panel
+  speaks English too, and it's styled as a card because the base `button` rule here is
+  stripped bare.
+- **Mined words arrive by themselves.** A sync pull hands new words straight to the panel,
+  so the `kakibun-import.json` file import is now a fallback rather than the route.
+- **The focus list reaches the engine.** When the toggle is on, sentence picking leans
+  towards sentences containing kanji you keep meeting in your games — at **half** the
+  weight of a kanji freshly learned in Kakikana, so a new kanji still wins and this only
+  breaks ties beneath it. Off restores the previous behaviour exactly.
+- Version and *Réinitialiser* moved to their own container so the destructive action stays
+  last on the page with the games panel above it.
+
+A caution worth repeating from KakiBridge's notes: letting a game steer your kanji order
+makes it optimal for *that game* rather than for Japanese in general. That's the right
+trade while you're playing it and the wrong one if you switch games every week — which is
+why it's a toggle, and why turning it off keeps the data.
+
 ## Release checklist
 
 Bump `VERSION` in `sw.js` **and** `APP_VERSION` in `js/app.js` together.
 No build step — the files are the sources. Adding a file means updating both
 `index.html` and the `PRECACHE` list in `sw.js`.
+
+`release.js` in the test harness checks all of that mechanically: the two versions
+match, `PRECACHE` and the disk agree in both directions (a listed file that doesn't
+exist makes the service worker's install fail, which silently breaks updating),
+every `<script>` is precached and loaded in a workable order, every cross-module
+`Module.member` reference resolves, fr and en have the same i18n keys and every
+`App.t()` key exists, and the word popup's centring isn't wiped by its animation.
+`sync/` is exempt — it's the relay's source, not part of the app.
