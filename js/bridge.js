@@ -109,20 +109,58 @@ const Bridge = (() => {
     for (const ch of surfK) if (Parse.isKanji(ch) && !learned.has(ch)) return false;
     return true;
   }
+  function knowsSome(surfK) {
+    for (const ch of surfK) if (Parse.isKanji(ch) && learned.has(ch)) return true;
+    return false;
+  }
+
+  /* Split a word into segments as finely as the data allows, so furigana can sit
+   * over ONE kanji rather than the whole run: 学生 → 学(がく) + 生(せい), letting a
+   * known 生 stay bare while an unknown 学 carries its reading.
+   * Falls back to a single run for jukujikun (今年 = ことし can't be split) and
+   * for anything whose per-kanji readings don't reassemble exactly. */
+  function segmentsFor(tok) {
+    const lex = tok.lex || {};
+    if (lex.seg && !tok.form) return lex.seg.map(s => ({ t: s[0], rt: s[1] }));
+    const base = Parse.align(tok.surfK, tok.surfR);
+    if (lex.sp || !lex.kb) return base;                 // fused reading, or nothing to split by
+    const out = [];
+    for (const s of base) {
+      const chars = [...s.t];
+      const kanji = chars.filter(Parse.isKanji);
+      // only split a run that is ALL kanji and matches kb one-for-one
+      if (!s.rt || kanji.length !== chars.length || kanji.length !== lex.kb.length) {
+        out.push(s); continue;
+      }
+      if (lex.kb.join("") !== s.rt) { out.push(s); continue; }   // readings must reassemble
+      chars.forEach((c, i) => out.push({ t: c, rt: lex.kb[i] }));
+    }
+    return out;
+  }
 
   /* Display segments for a token: [{t, rt?}].
-   * showAll bypasses gating (setting). furi: "all" | "new" | "none". */
+   * showAll bypasses gating (setting). furi: "all" | "new" | "none".
+   *
+   * Gating rule: a word is written in kanji as soon as ANY of its kanji is
+   * learned — the unknown characters simply carry furigana. Only a word with no
+   * learned kanji at all falls back to kana. Exception: in furi "none" there is
+   * no furigana to lean on, so a partially-known word would be unreadable and
+   * the kana fallback still applies. */
   function display(tok, opts) {
     const o = opts || {};
     if (tok.surfK == null) return [{ t: tok.surfR }];
-    if (!o.showAll && !knowsAll(tok.surfK)) return [{ t: tok.surfR }]; // not learned → kana
-    const lex = tok.lex || {};
-    const segs = (lex.seg && !tok.form)
-      ? lex.seg.map(s => ({ t: s[0], rt: s[1] }))
-      : Parse.align(tok.surfK, tok.surfR);
+    // forceKanji: the reading exercise must show the character it is asking
+    // about, so it opts out of both the kana fallback and the furigana
+    if (o.forceKanji) return segmentsFor(tok).map(s => ({ t: s.t }));
+    if (!o.showAll) {
+      const all = knowsAll(tok.surfK);
+      if (!all && o.furi === "none") return [{ t: tok.surfR }];
+      if (!all && !knowsSome(tok.surfK)) return [{ t: tok.surfR }];
+    }
+    const segs = segmentsFor(tok);
     if (o.furi === "none") return segs.map(s => ({ t: s.t }));
     if (o.furi === "all") return segs;
-    // "new": ruby only when the run contains a not-yet-mastered (or unknown) kanji
+    // "new": ruby only over segments holding a not-yet-mastered or unknown kanji
     return segs.map(s => {
       if (!s.rt) return s;
       const needs = [...s.t].some(ch => Parse.isKanji(ch) && (fresh.has(ch) || !learned.has(ch)));
@@ -130,7 +168,8 @@ const Bridge = (() => {
     });
   }
 
-  return { load, refresh, importJSON, display, knowsAll, hasInfo, learnedCount, importInfo,
+  return { load, refresh, importJSON, display, segmentsFor, knowsAll, knowsSome,
+           hasInfo, learnedCount, importInfo,
            isLearned: (ch) => learned.has(ch), KAKIKANA_KEY };
 })();
 if (typeof module !== "undefined") module.exports = { Bridge };

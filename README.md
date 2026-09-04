@@ -82,6 +82,22 @@ reading is the kanji's main one or a rare one.
 - Library drill-downs scroll back to the top, and a sentence-final 。 no longer wraps onto
   a line of its own.
 
+## What's in v1.3
+
+- **Rōmaji in the library's usage examples.** Every example word made of more than the
+  headword kanji now carries its reading in rōmaji: お母さん (okaasan) = maman,
+  水曜日 (suiyoubi) = mercredi, 学生 (gakusei) = étudiant. A standalone example that *is*
+  the kanji (水 = l'eau) is left alone — its reading is already on the row.
+- **Kanji you know stay in kanji, even in words you only half know.** A word is now
+  written in kanji as soon as *one* of its characters is learned, with furigana over the
+  ones that aren't: 学生 shows as 学(がく)生 once you know 生, and 先生 as 先(せん)生.
+  Words like 今年 that have a single fused reading take furigana across the whole word,
+  since ことし can't be split between 今 and 年. A word with no learned kanji still falls
+  back to kana, and so does any partly-known word when furigana is switched off — there
+  would be nothing left to read it by.
+- Reading and kanji-fill questions now only need *the character being asked about* to be
+  learned rather than the whole word, which roughly doubles how many of them exist.
+
 ## Release checklist
 
 Bump `VERSION` in `sw.js` **and** `APP_VERSION` in `js/app.js` together.

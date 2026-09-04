@@ -133,11 +133,14 @@ const Engine = (() => {
     const out = [];
     p.toks.forEach((tok, i) => {
       if (tok.type !== "w" || tok.surfK == null) return;
-      if (!showAll && !Bridge.knowsAll(tok.surfK)) return;
+      // the word only has to be DISPLAYED in kanji (one learned kanji is enough);
+      // the character being asked about is checked individually below
+      if (!showAll && !Bridge.knowsSome(tok.surfK)) return;
       const bd = Parse.kanjiBreakdown(tok.lex, tok.surfK, tok.surfR);
       for (const part of bd.parts) {
         if (part.fused || part.chars.length !== 1) continue;
         const ch = part.chars[0];
+        if (!showAll && !Bridge.isLearned(ch)) continue;
         const info = KANJI_INFO[ch];
         if (!info) continue;
         const rt = Parse.readingType(ch, part.reading);
@@ -164,9 +167,10 @@ const Engine = (() => {
     const out = [];
     p.toks.forEach((tok, i) => {
       if (tok.type !== "w" || tok.surfK == null) return;
-      if (!showAll && !Bridge.knowsAll(tok.surfK)) return;
+      if (!showAll && !Bridge.knowsSome(tok.surfK)) return;
       [...tok.surfK].forEach((ch, ci) => {
         if (!Parse.isKanji(ch) || !KANJI_INFO[ch]) return;
+        if (!showAll && !Bridge.isLearned(ch)) return;   // never blank a kanji he hasn't met
         out.push({ tokIdx: i, ch, ci, reading: tok.surfR });
       });
     });

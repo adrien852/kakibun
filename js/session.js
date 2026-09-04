@@ -46,7 +46,9 @@ const Session = (() => {
     let inner = segHtml(tok, d);
     if (o.target && o.target.i === i) {
       const ch = o.target.ch;
-      inner = segHtml(tok, Object.assign({}, d, { furi: "none" }))
+      // this one word shows bare kanji (no ruby — it would print the answer);
+      // the rest of the sentence keeps its normal furigana help
+      inner = segHtml(tok, Object.assign({}, d, { furi: "none", forceKanji: true }))
         .replace(esc(ch), `<span class="rk">${esc(ch)}</span>`);
       return `<span class="tok" data-i="${i}">${inner}</span>`;
     }
@@ -330,7 +332,7 @@ const Session = (() => {
       <div class="mic-hint">${esc(App.t("reading_q"))}</div>
       <div class="choices" id="rd-choices">${choices.map(r =>
         `<button class="choice" data-r="${esc(r)}">${esc(r)}</button>`).join("")}</div>`;
-    $("rd-jp").innerHTML = jpHtml(parsed, { target: { i: c.tokIdx, ch: c.ch }, d: Object.assign({}, d, { furi: "none" }) });
+    $("rd-jp").innerHTML = jpHtml(parsed, { target: { i: c.tokIdx, ch: c.ch }, d });
     foot("");
     let done = false;
     $("rd-choices").querySelectorAll(".choice").forEach(b => b.addEventListener("click", () => {
@@ -378,8 +380,7 @@ const Session = (() => {
       <div class="mic-hint">${esc(App.t("kanjifill_q"))}</div>
       <div class="choices" id="kf-choices">${choices.map(k =>
         `<button class="choice kf-choice" data-k="${esc(k)}">${esc(k)}</button>`).join("")}</div>`;
-    $("kf-jp").innerHTML = jpHtml(parsed, { kfill: { i: c.tokIdx, ci: c.ci },
-                                            d: Object.assign({}, d, { furi: "none" }) });
+    $("kf-jp").innerHTML = jpHtml(parsed, { kfill: { i: c.tokIdx, ci: c.ci }, d });
     foot("");
     let done = false;
     $("kf-choices").querySelectorAll(".choice").forEach(b => b.addEventListener("click", () => {
