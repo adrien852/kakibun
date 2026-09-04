@@ -582,7 +582,6 @@ const Session = (() => {
     $("sess-bar-fill").style.width = "100%";
     if (isExam()) return Exam.finish(opts.exam.arc, results, opts);
     Sfx.complete();
-    Sync.pushSoon();          // a finished session is the moment worth uploading
     const st = Engine.state();
     if (bestCombo > st.bestCombo) { st.bestCombo = bestCombo; Engine.save(); }
     const mastered = events.filter(e => e.kind === "mastered").map(e => {

@@ -1,5 +1,5 @@
 /* Kakibun service worker — bump VERSION on every release (and APP_VERSION in js/app.js). */
-const VERSION = "1.6.0";
+const VERSION = "1.7.0";
 const CACHE = "kakibun-" + VERSION;
 
 const PRECACHE = [
@@ -25,7 +25,6 @@ const PRECACHE = [
   "js/map.js",
   "js/strengthen.js",
   "js/library.js",
-  "js/sync.js",
   "js/settings.js",
   "js/app.js",
   "icons/icon-192.png",

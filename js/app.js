@@ -1,5 +1,5 @@
 /* Kakibun — app shell: nav, home, i18n, boot. */
-const APP_VERSION = "1.6.0"; // keep in sync with sw.js VERSION
+const APP_VERSION = "1.7.0"; // keep in sync with sw.js VERSION
 const App = (() => {
   const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
   const $ = (id) => document.getElementById(id);
@@ -134,7 +134,6 @@ const App = (() => {
         const obj = JSON.parse(reader.result);
         if (Bridge.importJSON(obj, Engine.state())) {
           Engine.save();
-          Sync.pushSoon();
           toast(t("import_ok").replace("{n}", Bridge.learnedCount()));
           renderHome();
         } else toast(t("import_bad"));
@@ -169,7 +168,6 @@ const App = (() => {
       if (Engine.importSave(obj)) {
         Bridge.load(Engine.state());
         Engine.save();
-        Sync.push(true);
         toast(t("restore_ok"));
         applyLang();
       } else toast(t("restore_bad"));
@@ -206,7 +204,6 @@ const App = (() => {
       const r = Bridge.refresh(Engine.state());
       if (r.changed) {
         Engine.save();
-        Sync.pushSoon();
         if (r.fresh.length) toast(t("import_ok").replace("{n}", Bridge.learnedCount()));
         if ($("session").hidden) renderHome();
       }
@@ -215,7 +212,6 @@ const App = (() => {
     window.addEventListener("focus", recheck);
 
     renderHome();
-    Sync.start();
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("sw.js").catch(() => {});
     }

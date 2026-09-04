@@ -27,8 +27,7 @@ const Engine = (() => {
     kakikana: null,
     stats: { prt: {}, form: {}, mode: {} },
     stamps: {}, exams: [],
-    kanjiSeen: null, newKanji: [],
-    sync: { url: "", auto: true, lastPush: 0, lastErr: "", pushedHash: "" }
+    kanjiSeen: null, newKanji: []
   });
 
   function migrate(s) {
@@ -39,9 +38,11 @@ const Engine = (() => {
     if (!s.exams) s.exams = [];
     if (s.kanjiSeen === undefined) s.kanjiSeen = null;
     if (!s.newKanji) s.newKanji = [];
-    s.sync = Object.assign({ url: "", auto: true, lastPush: 0, lastErr: "", pushedHash: "" }, s.sync);
-    delete s.mined;        // v1.5 stored KakiBridge's words here; nothing reads them now
-    delete s.sync.lastPull;
+    // v1.4–v1.6 kept a relay config and KakiBridge's mined words here; the sync
+    // module is gone, so clear them out rather than carrying dead weight around
+    // in every save (and, in sync's case, an old relay URL).
+    delete s.sync;
+    delete s.mined;
     for (const id in s.points) {
       const p = s.points[id];
       if (p.tier === undefined) p.tier = p.mastered ? 1 : 0;

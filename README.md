@@ -98,45 +98,28 @@ reading is the kanji's main one or a rare one.
 - Reading and kanji-fill questions now only need *the character being asked about* to be
   learned rather than the whole word, which roughly doubles how many of them exist.
 
-## What's in v1.4
+## v1.4–v1.7: the sync experiment, and its removal
 
-- **Automatic sync.** Réglages → *Synchronisation automatique*: paste a relay address
-  once and the save uploads itself — on open, at the end of a session or an exam, after a
-  Kakikana import, and when you leave the app. An unchanged save is never re-uploaded,
-  failures are silent apart from the status line, and nothing about it can interrupt a
-  lesson.
-- **The relay is in `sync/`.** A single Cloudflare Worker (`sync/worker.js`, free tier,
-  five minutes to set up) plus `sync/README.md`, which carries the setup, the wire
-  contract KakiBridge implements, and a no-cloud Tailscale alternative. That folder is
-  *not* part of the app: it isn't precached and `index.html` never loads it.
+v1.4 added an automatic progress sync — a Cloudflare Worker relay in `sync/`, a settings
+card, and uploads on session end. v1.5 added KakiBridge's *Mots des jeux* panel on top.
+Both are **gone**, and this is the reasoning, kept so nobody rebuilds them here by
+accident:
 
-Why a relay rather than talking to the PC directly: Kakibun is served over HTTPS, and an
-HTTPS page cannot fetch `http://192.168.1.x` — the browser blocks it as mixed content and
-no setting changes that. The two devices need a meeting point that speaks HTTPS.
+Kakibun never introduces a kanji. It drills grammar over a fixed corpus — 502 hand-written
+sentences, each permanently attached to one grammar point, and 111 kanji. Nothing can add
+a sentence, a word or a kanji at runtime. So a pipeline that harvests vocabulary from
+games had almost nothing to act on here: the panel could only nudge which of a point's
+4–6 existing sentences came up, and only when a mined kanji happened to be one of the 111.
+That work belongs in **KakiKana**, which owns the curriculum and the learning order, and
+that is where it went.
 
-The relay has two boxes with **one writer each** — Kakibun writes `progress`, KakiBridge
-writes `mined` — so there is no merge and no conflict resolution, which is the part of a
-sync feature that is always subtly wrong. Kakibun only ever writes `progress` (since
-v1.6 it doesn't read at all). The address carries its own secret and lives only in each
-device's settings, never in the repo, and is stripped from the save before upload so it
-can't travel to the PC and back.
+With the panel gone the sync had no counterpart either, so v1.7 removes the relay
+entirely. **Kakibun now makes no network requests at all** — it is once again a purely
+local app. Progress still moves between devices through *Réglages → Sauvegarder ma
+progression* (export / restore), which is what v1.2 added and what never needed a server.
 
-## What's in v1.6
-
-v1.5 briefly shipped KakiBridge's *Mots des jeux* panel. It is **removed again**, on
-purpose: Kakibun never introduces a kanji, it only drills grammar, so the most a mined
-word list could do here was nudge which of a point's 4–6 existing sentences came up —
-and only when a game kanji happened to be one of the 111 Kakibun knows. That is not
-worth a screen. Mined words belong to KakiKana, which is what actually decides learning
-order, and that is where the feature is going.
-
-So this release drops `js/games.js`, its panel and CSS, its 13 i18n keys, the global `t`
-shim it needed, and the sentence-picking bias — everything is back to how it behaved in
-v1.4, and nothing about your progress is touched.
-
-The sync also becomes **push-only**. Kakibun uploads its save; it no longer downloads
-the `mined` box, because nothing here consumed it. The relay itself is unchanged and
-still has both boxes, so KakiBridge and KakiKana can use `mined` between them.
+Upgrading is safe: a save carrying the old relay URL and mined-word list has both
+stripped on load, and nothing else is touched.
 
 ## Release checklist
 
