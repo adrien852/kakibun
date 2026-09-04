@@ -1,5 +1,5 @@
 /* Kakibun — app shell: nav, home, i18n, boot. */
-const APP_VERSION = "1.5.0"; // keep in sync with sw.js VERSION
+const APP_VERSION = "1.6.0"; // keep in sync with sw.js VERSION
 const App = (() => {
   const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
   const $ = (id) => document.getElementById(id);
@@ -215,10 +215,6 @@ const App = (() => {
     window.addEventListener("focus", recheck);
 
     renderHome();
-    // games.js mounts on DOMContentLoaded, which fires before this — so at that
-    // point Engine wasn't loaded and its labels fell back to French. Re-mount now
-    // that there is a language to read. mount() reuses the existing panel.
-    if (typeof Games !== "undefined") Games.mount();
     Sync.start();
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("sw.js").catch(() => {});
@@ -226,12 +222,6 @@ const App = (() => {
   }
 
   document.addEventListener("DOMContentLoaded", boot);
-
-  // games.js (shipped by KakiBridge, kept byte-identical to its copy so the two
-  // never drift) looks up a *global* `t` for its labels. App's own `t` is local
-  // to this IIFE, so expose one — inside App the `const t` above still shadows
-  // it, and every other module goes through App.t, so nothing else is affected.
-  window.t = (key) => { try { return t(key); } catch (e) { return key; } };
 
   return { t, lang, pickOk, nav, renderHome, applyLang, toast, toastMaster,
            exportSave, VERSION: APP_VERSION };

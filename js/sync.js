@@ -4,15 +4,16 @@
  * and shuttling a JSON file between them by hand after every session is not a
  * plan anybody keeps up.
  *
- * The channel is deliberately dumb — two named boxes behind one URL:
+ * The channel is deliberately dumb — one box, one direction:
  *
  *   POST <base>/progress   body = {"data": <kakibun save>}     written by Kakibun
  *   GET  <base>/progress                                        read   by KakiBridge
- *   POST <base>/mined      body = {"data": <mined words>}       written by KakiBridge
- *   GET  <base>/mined                                           read   by Kakibun
  *
- * Each box has exactly ONE writer, so there is nothing to merge and no conflict
- * to resolve — that is the whole reason it is split in two.
+ * ONE writer, so there is nothing to merge and no conflict to resolve.
+ *
+ * The relay also has a `mined` box (KakiBridge writes, someone else reads).
+ * Kakibun no longer touches it: mined words are a KakiKana concern, not a
+ * sentence-app one. The box stays on the relay for that side to use.
  *
  * The base URL carries its own secret (…/s/<random>) and is typed into Settings
  * on the device, never committed to the repo, so nothing sensitive ships with
@@ -112,50 +113,10 @@ const Sync = (() => {
     pushTimer = setTimeout(() => push(false), DEBOUNCE);
   };
 
-  /* Hand freshly pulled words to the "Mots des jeux" panel, so the relay makes
-   * the file import unnecessary rather than merely convenient. games.js only
-   * exposes importFile(File), which is fine — wrapping the payload in a File
-   * costs nothing and means that file stays byte-identical to KakiBridge's copy
-   * instead of being forked for one extra entry point. */
-  function feedGames(data) {
-    if (typeof Games === "undefined" || typeof File === "undefined") return;
-    const words = Array.isArray(data) ? data : (data && data.words);
-    if (!Array.isArray(words) || !words.length) return;
-    try {
-      const f = new File([JSON.stringify({ words })], "mined.json", { type: "application/json" });
-      Games.importFile(f, () => { try { Games.mount(); } catch (e) {} });
-    } catch (e) { /* panel absent or storage full — the manual import still works */ }
-  }
-
-  /* ---------- pull: mined words come down ---------- */
-  async function pull() {
-    if (!configured() || busy) return false;
-    busy = true;
-    try {
-      const got = await call("mined");
-      const data = got && (got.data !== undefined ? got.data : got);
-      let changed = false;
-      if (data) {
-        const before = JSON.stringify(Engine.state().mined);
-        if (JSON.stringify(data) !== before) {
-          Engine.state().mined = data;
-          changed = true;
-          feedGames(data);
-        }
-      }
-      note({ lastPull: Date.now(), lastErr: "" });
-      return changed;
-    } catch (e) {
-      note({ lastErr: String(e.message || e) });
-      return false;
-    } finally { busy = false; }
-  }
-
-  /* both directions, for the Settings button and for boot */
+  /* both directions collapsed to one: the Settings button and boot both push */
   async function syncNow(force) {
     const up = await push(force);
-    const down = await pull();
-    return { up, down };
+    return { up };
   }
 
   /* ---------- lifecycle ---------- */
@@ -165,13 +126,10 @@ const Sync = (() => {
     // Listeners are registered unconditionally: the relay address can be typed
     // into Settings at any point, and it would be a poor surprise if sync only
     // woke up after a restart. Every handler re-checks.
-    if (auto()) setTimeout(() => syncNow(false), 1500);
+    if (auto()) setTimeout(() => push(false), 1500);
     document.addEventListener("visibilitychange", () => {
-      if (!auto()) return;
-      if (document.hidden) push(false);        // leaving: get the save out
-      else pull();                             // coming back: collect anything new
+      if (auto() && document.hidden) push(false);   // leaving: get the save out
     });
-    window.addEventListener("focus", () => { if (auto()) pull(); });
     // A phone can be killed outright from the app switcher, and an in-flight
     // fetch dies with the page — sendBeacon is handed to the browser to deliver
     // after we're gone. Fire-and-forget, so it can't update lastPush.
@@ -181,8 +139,8 @@ const Sync = (() => {
   const status = () => {
     const c = cfg();
     return { configured: configured(), auto: !!c.auto, lastPush: c.lastPush || 0,
-             lastPull: c.lastPull || 0, err: c.lastErr || "", busy };
+             err: c.lastErr || "", busy };
   };
 
-  return { start, push, pull, syncNow, pushSoon, beacon, status, configured };
+  return { start, push, syncNow, pushSoon, beacon, status, configured };
 })();

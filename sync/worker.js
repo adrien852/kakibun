@@ -17,8 +17,16 @@
  * ---------------------------------------------------------------------------
  * SETUP  (about five minutes, free tier, no card)
  *
- *  1. dash.cloudflare.com → Workers & Pages → Create → Worker → Deploy.
- *  2. Edit code, paste this whole file over what's there, Deploy.
+ *  1. dash.cloudflare.com → Workers & Pages → Create → Workers →
+ *     "Start with Hello World!". Name it, Deploy.
+ *  2. Edit code, select all, PASTE this whole file over what's there, Deploy.
+ *
+ *     Paste it — do NOT upload this file. The dashboard's uploader is for
+ *     pre-built sites and answers a lone script with "This uploader does not
+ *     yet support projects that require a build process… use `wrangler deploy`".
+ *     There is no build step here; it is the wrong door, not a bad file.
+ *     (Prefer the command line? See wrangler.toml next to this file.)
+ *
  *  3. Storage & Databases → KV → Create namespace, call it KAKIBUN.
  *  4. Back in the Worker → Settings → Bindings → Add → KV namespace:
  *        Variable name: KV        Namespace: KAKIBUN

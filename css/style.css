@@ -127,23 +127,6 @@ b{font-weight:700}
 .set-note{font-size:.75rem;color:var(--ink2);margin-top:8px;line-height:1.5}
 .set-note.bad{color:var(--red)}
 
-/* "Mots des jeux" (js/games.js, shipped by KakiBridge and kept byte-identical
-   to its copy). It injects its own CSS at mount time, i.e. AFTER this file, so
-   these rules are written with #games-panel to outrank it on specificity rather
-   than by editing a file that belongs to another project. Base `button` here is
-   stripped bare, so its buttons need real styling or they read as plain text. */
-#games-panel{background:var(--card);border-radius:14px;box-shadow:var(--shadow);
-  padding:14px 16px;margin-top:14px}
-#games-panel h3{font-size:.95rem;font-weight:600;margin:0}
-#games-panel .games-sub{font-size:.78rem;color:var(--ink2)}
-#games-panel .games-actions button{padding:8px 12px;font-size:.85rem;border-radius:10px;
-  font-weight:600;background:#f1ebe0;color:var(--ink)}
-#games-panel .games-actions button:active{transform:scale(.97)}
-#games-panel .games-kanji span{background:#f1ebe0;font-size:1.25rem;border-radius:10px}
-#games-panel .games-kanji span.gk-on{background:var(--red);color:#fff}
-#games-panel .games-row{border-bottom:1px solid var(--line)}
-#games-panel .games-row .gnew{background:var(--red);color:#fff}
-#games-panel .games-msg{color:var(--ink2)}
 
 /* ============ SESSION ============ */
 .overlay{position:fixed;inset:0;background:var(--bg);z-index:50;max-width:none;overflow-y:auto;padding:0}

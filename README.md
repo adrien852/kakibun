@@ -100,11 +100,11 @@ reading is the kanji's main one or a rare one.
 
 ## What's in v1.4
 
-- **Automatic sync with KakiBridge.** Réglages → *Synchronisation automatique*: paste a
-  relay address once and the save uploads itself — on open, at the end of a session or an
-  exam, after a Kakikana import, and when you leave the app — while words mined on the PC
-  come down the other way. An unchanged save is never re-uploaded, failures are silent
-  apart from the status line, and nothing about it can interrupt a lesson.
+- **Automatic sync.** Réglages → *Synchronisation automatique*: paste a relay address
+  once and the save uploads itself — on open, at the end of a session or an exam, after a
+  Kakikana import, and when you leave the app. An unchanged save is never re-uploaded,
+  failures are silent apart from the status line, and nothing about it can interrupt a
+  lesson.
 - **The relay is in `sync/`.** A single Cloudflare Worker (`sync/worker.js`, free tier,
   five minutes to set up) plus `sync/README.md`, which carries the setup, the wire
   contract KakiBridge implements, and a no-cloud Tailscale alternative. That folder is
@@ -114,35 +114,29 @@ Why a relay rather than talking to the PC directly: Kakibun is served over HTTPS
 HTTPS page cannot fetch `http://192.168.1.x` — the browser blocks it as mixed content and
 no setting changes that. The two devices need a meeting point that speaks HTTPS.
 
-The channel is two boxes with **one writer each** — Kakibun writes `progress`, KakiBridge
+The relay has two boxes with **one writer each** — Kakibun writes `progress`, KakiBridge
 writes `mined` — so there is no merge and no conflict resolution, which is the part of a
-sync feature that is always subtly wrong. The address carries its own secret and lives
-only in each device's settings, never in the repo, and is stripped from the save before
-upload so it can't travel to the PC and back.
+sync feature that is always subtly wrong. Kakibun only ever writes `progress` (since
+v1.6 it doesn't read at all). The address carries its own secret and lives only in each
+device's settings, never in the repo, and is stripped from the save before upload so it
+can't travel to the PC and back.
 
-## What's in v1.5
+## What's in v1.6
 
-- **« Mots des jeux ».** KakiBridge's `games.js` now lives in Kakibun: Réglages grows a
-  panel listing the words Yomitan saw while you played, ranked by how often you met them,
-  with a *Prioriser ces kanji* toggle. The file is **byte-identical to KakiBridge's copy**,
-  so the two never drift and its own test suite stays valid — all the adaptation is on the
-  Kakibun side: it mounts into `#settings-extra` (outside `#set-body`, so rebuilding the
-  settings cards can't wipe it), Kakibun exposes the global `t` it looks for so the panel
-  speaks English too, and it's styled as a card because the base `button` rule here is
-  stripped bare.
-- **Mined words arrive by themselves.** A sync pull hands new words straight to the panel,
-  so the `kakibun-import.json` file import is now a fallback rather than the route.
-- **The focus list reaches the engine.** When the toggle is on, sentence picking leans
-  towards sentences containing kanji you keep meeting in your games — at **half** the
-  weight of a kanji freshly learned in Kakikana, so a new kanji still wins and this only
-  breaks ties beneath it. Off restores the previous behaviour exactly.
-- Version and *Réinitialiser* moved to their own container so the destructive action stays
-  last on the page with the games panel above it.
+v1.5 briefly shipped KakiBridge's *Mots des jeux* panel. It is **removed again**, on
+purpose: Kakibun never introduces a kanji, it only drills grammar, so the most a mined
+word list could do here was nudge which of a point's 4–6 existing sentences came up —
+and only when a game kanji happened to be one of the 111 Kakibun knows. That is not
+worth a screen. Mined words belong to KakiKana, which is what actually decides learning
+order, and that is where the feature is going.
 
-A caution worth repeating from KakiBridge's notes: letting a game steer your kanji order
-makes it optimal for *that game* rather than for Japanese in general. That's the right
-trade while you're playing it and the wrong one if you switch games every week — which is
-why it's a toggle, and why turning it off keeps the data.
+So this release drops `js/games.js`, its panel and CSS, its 13 i18n keys, the global `t`
+shim it needed, and the sentence-picking bias — everything is back to how it behaved in
+v1.4, and nothing about your progress is touched.
+
+The sync also becomes **push-only**. Kakibun uploads its save; it no longer downloads
+the `mined` box, because nothing here consumed it. The relay itself is unchanged and
+still has both boxes, so KakiBridge and KakiKana can use `mined` between them.
 
 ## Release checklist
 

@@ -32,7 +32,7 @@ const Settings = (() => {
     const syncErr = st.configured && st.err;
     const syncLine = !st.configured ? App.t("sync_off")
       : syncErr ? App.t("sync_err").replace("{e}", st.err)
-      : App.t("sync_state").replace("{up}", when(st.lastPush)).replace("{down}", when(st.lastPull));
+      : App.t("sync_state").replace("{up}", when(st.lastPush));
 
     body.innerHTML = `
     <div class="card">
@@ -75,9 +75,7 @@ const Settings = (() => {
       <div class="set-row"><div><div class="set-l">${esc(App.t("set_kakikana"))}</div>
         <div class="set-d">${esc(kkLine)}</div></div>
         <button class="btn small" id="set-import">${esc(App.t("set_import"))}</button></div>
-    </div>`;
-
-    document.getElementById("set-tail").innerHTML = `
+    </div>
     <div class="card">
       <div class="set-row"><div class="set-l">${esc(App.t("set_version"))}</div><div class="set-d">${esc(App.VERSION)}</div></div>
       <div class="set-row"><div class="set-l" style="color:var(--red)">${esc(App.t("set_reset"))}</div>
@@ -135,10 +133,6 @@ const Settings = (() => {
     document.getElementById("set-export").addEventListener("click", () => App.exportSave());
     document.getElementById("set-restore").addEventListener("click", () =>
       document.getElementById("restore-file").click());
-    // the games panel lives outside #set-body and so survives this rebuild —
-    // but it has to be re-rendered too when the language changes
-    if (typeof Games !== "undefined") Games.mount();
-
     document.getElementById("set-reset").addEventListener("click", () => {
       if (confirm(App.t("set_reset_confirm"))) {
         localStorage.removeItem("kakibun.state.v1");

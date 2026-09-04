@@ -28,9 +28,46 @@ part of a sync feature that is always subtly wrong is simply absent.
 
 ## Set it up
 
-`worker.js` is a complete Cloudflare Worker; its header has the click-by-click
-setup (Worker + a KV namespace bound as `KV`, five minutes, free tier, no card).
-It ends with your relay address:
+`worker.js` is a complete Cloudflare Worker — one file, no build step, no
+dependencies. Two ways to get it up there; either is five minutes on the free
+tier, no card.
+
+### A. Dashboard (nothing to install)
+
+1. Workers & Pages → **Create** → **Workers** → **Start with "Hello World!"**.
+   Name it, Deploy. That publishes Cloudflare's stub.
+2. **Edit code** → select all → paste `worker.js` over it → **Deploy**.
+3. Storage & Databases → **KV** → Create namespace, call it `KAKIBUN`.
+4. Back in the Worker → Settings → **Bindings** → add a KV namespace binding:
+   variable name `KV`, namespace `KAKIBUN`. Deploy again.
+
+> **Paste the code — never upload the file.** Dragging `worker.js` into the
+> uploader gets you *"This uploader does not yet support projects that require a
+> build process… please use `wrangler deploy` instead."* That path expects a
+> pre-built site, not a single script. Nothing is wrong with the file.
+
+Cloudflare reshuffles this dashboard regularly, so the labels may not match
+word for word. What you want is the plain **Hello World** starter — the one that
+gives you an online editor.
+
+### B. Command line (`wrangler`)
+
+Needs Node, which you already have for KakiBridge. From this folder:
+
+    npx wrangler kv namespace create KAKIBUN     # prints an id
+    # paste that id into wrangler.toml
+    npx wrangler deploy
+
+The first `deploy` opens a browser to log in, then prints your `workers.dev`
+URL. On older wrangler the first command is `kv:namespace create`, with a colon.
+`wrangler.toml` sits next to `worker.js` and already has everything else filled
+in.
+
+### Then, either way
+
+5. Invent a secret — long and random, e.g. from `openssl rand -hex 16`.
+   It is the only thing standing between your save and the internet.
+6. Your relay address is:
 
 ```
 https://<worker>.<subdomain>.workers.dev/s/<secret>

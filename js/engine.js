@@ -28,8 +28,7 @@ const Engine = (() => {
     stats: { prt: {}, form: {}, mode: {} },
     stamps: {}, exams: [],
     kanjiSeen: null, newKanji: [],
-    sync: { url: "", auto: true, lastPush: 0, lastPull: 0, lastErr: "", pushedHash: "" },
-    mined: null            // words KakiBridge sent down; games.js reads this
+    sync: { url: "", auto: true, lastPush: 0, lastErr: "", pushedHash: "" }
   });
 
   function migrate(s) {
@@ -40,8 +39,9 @@ const Engine = (() => {
     if (!s.exams) s.exams = [];
     if (s.kanjiSeen === undefined) s.kanjiSeen = null;
     if (!s.newKanji) s.newKanji = [];
-    s.sync = Object.assign({ url: "", auto: true, lastPush: 0, lastPull: 0, lastErr: "", pushedHash: "" }, s.sync);
-    if (s.mined === undefined) s.mined = null;
+    s.sync = Object.assign({ url: "", auto: true, lastPush: 0, lastErr: "", pushedHash: "" }, s.sync);
+    delete s.mined;        // v1.5 stored KakiBridge's words here; nothing reads them now
+    delete s.sync.lastPull;
     for (const id in s.points) {
       const p = s.points[id];
       if (p.tier === undefined) p.tier = p.mastered ? 1 : 0;
@@ -113,20 +113,10 @@ const Engine = (() => {
     const all = pool.length ? pool : sentencesFor(gp);
     if (!all.length) return null;
     const fresh = new Set(state.newKanji || []);
-    // Kanji met while gaming, if the KakiBridge panel is present AND switched on.
-    // The bonus is deliberately half the newKanji one: a kanji that just arrived
-    // from Kakikana still wins, this only breaks ties beneath it. Turning the
-    // toggle off restores the previous behaviour exactly.
-    let focus = null;
-    try {
-      if (typeof Games !== "undefined" && Games.isOn()) focus = new Set(Games.focusKanji());
-    } catch (e) { focus = null; }
     let best = null, bestScore = Infinity;
     for (const s of all.slice().sort(() => Math.random() - 0.5)) {
       let sc = state.sentSeen[s.i] || 0;
-      const ks = (fresh.size || focus) ? sentKanji(s.i) : null;
-      if (fresh.size && ks.some(k => fresh.has(k))) sc -= 2;
-      if (focus && focus.size && ks.some(k => focus.has(k))) sc -= 1;
+      if (fresh.size && sentKanji(s.i).some(k => fresh.has(k))) sc -= 2;
       if (sc < bestScore) { bestScore = sc; best = s; }
     }
     return best;
