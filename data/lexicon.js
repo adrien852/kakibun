@@ -420,4 +420,28 @@ W("onegaishimasu",null,"おねがいします","exp","s'il vous plaît","please"
 W("kudasai",null,"ください","exp","donnez-moi","please give me");
 W("ippai",null,"いっぱい","exp","plein, rassasié","full");
 
+/* --- greetings and conversation glue, added with the dialogues (v2.0) --- */
+/* Bare surnames. The tanaka/yamada entries carry さん baked in, which is right
+   when you talk ABOUT someone and WRONG when you introduce yourself — you never
+   award yourself an honorific. The dialogues need both forms. */
+W("tanaka0","田中","たなか","n","Tanaka (sans さん)","Tanaka (no さん)",{kb:["た","なか"]});
+W("yamada0","山田","やまだ","n","Yamada (sans さん)","Yamada (no さん)",{kb:["やま","だ"]});
+W("konnichiwa",null,"こんにちは","exp","bonjour","hello");
+W("ohayou",null,"おはようございます","exp","bonjour (le matin)","good morning");
+W("konbanwa",null,"こんばんは","exp","bonsoir","good evening");
+W("sayounara",null,"さようなら","exp","au revoir","goodbye");
+W("hajimemashite",null,"はじめまして","exp","enchanté","nice to meet you");
+W("yoroshiku",null,"よろしくおねがいします","exp","enchanté, comptez sur moi","pleased to meet you");
+W("soudesuka",null,"そうですか","exp","ah bon ?","is that so?");
+W("aa",null,"ああ","exp","ah","ah");
+W("etto",null,"えっと","exp","euh…","umm…");
+W("jaa",null,"じゃあ","exp","alors, bon","well then");
+W("dewa",null,"では","exp","alors (soutenu)","well then (formal)");
+W("shitsurei",null,"しつれいします","exp","excusez-moi (en entrant/partant)","excuse me (entering/leaving)");
+W("otsukaresama",null,"おつかれさまです","exp","bon courage, merci (au travail)","thanks for your work");
+W("itadakimasu",null,"いただきます","exp","bon appétit (avant de manger)","said before eating");
+W("gochisousama",null,"ごちそうさまでした","exp","merci pour le repas","thanks for the meal");
+W("moshimoshi",null,"もしもし","exp","allô","hello (on the phone)");
+W("chotto",null,"ちょっと","adv","un peu, un instant","a little, a moment");
+
 if (typeof module !== "undefined") module.exports = { LEXICON };

@@ -192,6 +192,52 @@ const Engine = (() => {
     seen[id] = (seen[id] || 0) + 1;
   }
 
+  /* ---------- dialogues (v2.0) ----------
+   * A sentence teaches a pattern; a dialogue shows what it is for. Two things
+   * come out of them: "what does he say next?" (comprehension in context) and
+   * "your turn to say it" (production with a reason to speak). */
+  const dialoguesUpTo = () => {
+    const cur = currentIndex();
+    return DIALOGUES.filter(d => {
+      const gi = GRAMMAR.findIndex(g => g.id === d.gp);
+      return gi >= 0 && gi <= cur;
+    });
+  };
+  const dialoguesFor = (gp) => DIALOGUES.filter(d => d.gp === gp);
+
+  /* Wrong answers for "what comes next?". The best ones are real lines from
+   * elsewhere: grammatical, plausible, and wrong only because of what was just
+   * said. A line from the SAME dialogue is included when possible — it makes
+   * the position matter, not just the vocabulary. */
+  function replyChoices(dlg, lineIdx, n) {
+    const want = (n || 4) - 1;
+    const right = dlg.lines[lineIdx];
+    const seen = new Set([right.fr]);
+    const out = [];
+    const sameDlg = dlg.lines.filter((l, i) => i !== lineIdx);
+    const others = dialoguesUpTo().filter(d => d.i !== dlg.i)
+      .reduce((a, d) => a.concat(d.lines), []);
+    for (const pool of [sameDlg, others]) {
+      for (const l of pool.slice().sort(() => Math.random() - 0.5)) {
+        if (out.length >= want) break;
+        if (seen.has(l.fr)) continue;
+        seen.add(l.fr); out.push(l);
+      }
+    }
+    return out;
+  }
+
+  /* Which line of a dialogue is worth asking about: never the first (there is
+   * no context yet), and never a bare greeting (nothing to understand). */
+  function replyLine(dlg) {
+    const ok = [];
+    for (let i = 1; i < dlg.lines.length; i++) {
+      const toks = Parse.sentence(dlg.lines[i].dsl).toks;
+      if (toks.length >= 2) ok.push(i);
+    }
+    return ok.length ? ok[Math.floor(Math.random() * ok.length)] : null;
+  }
+
   function sentenceCaps(sent) {
     const p = Parse.sentence(sent.dsl);
     const prt = p.toks.filter(t => t.type === "p");
@@ -370,6 +416,18 @@ const Engine = (() => {
       items.push({ kind: modeFor(g.id, sent, items.length), gp: g.id, sent: sent.i,
                    maint: p.tier >= 1 });
     }
+    // One dialogue question per session, once there are dialogues to draw on.
+    const dpool = dialoguesUpTo();
+    if (dpool.length && items.length >= 4) {
+      const d = dpool[Math.floor(Math.random() * dpool.length)];
+      const li = replyLine(d);
+      if (li != null) {
+        // alternate between understanding the exchange and taking part in it
+        const kind = Math.random() < 0.5 ? "reply" : "roleplay";
+        items.push({ kind, gp: d.gp, dlg: d.i, line: li, free: true });
+      }
+    }
+
     // A couple of vocabulary questions per session. They are marked `free`:
     // they score and feed the stats, but a word you fumble must not push a
     // grammar point's review schedule around — different thing being tested.
@@ -594,6 +652,7 @@ const Engine = (() => {
            duePoints, learningDue, sentencesFor, sentKanji, pickSentence, sentenceCaps,
            readingCandidates, spotCandidates, kanjiFillCandidates,
            listenChoices, vocabPool, pickVocab, noteVocab,
+           dialoguesUpTo, dialoguesFor, replyChoices, replyLine,
            kanjiDistractors, learnedKanjiPool, modeFor, buildSession, buildStrengthen, buildKanjiDebut,
            record, recordStats, noteSeen, masteryProgress, streak, stats,
            arcPoints, arcUnlocked, hasStamp, stampCount, grandUnlocked, recordExam,

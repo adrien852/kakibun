@@ -67,6 +67,7 @@ const Library = (() => {
     let html = `<div class="lib-tabs">
       <button class="lib-tab ${tab === "grammar" ? "on" : ""}" data-t="grammar">${esc(App.t("lib_grammar"))}</button>
       <button class="lib-tab ${tab === "sent" ? "on" : ""}" data-t="sent">${esc(App.t("lib_sent"))}</button>
+      <button class="lib-tab ${tab === "dlg" ? "on" : ""}" data-t="dlg">${esc(App.t("lib_dlg"))}</button>
       <button class="lib-tab ${tab === "kanji" ? "on" : ""}" data-t="kanji">${esc(App.t("lib_kanji"))}</button>
     </div><div id="lib-content"></div>`;
     body.innerHTML = html;
@@ -75,6 +76,7 @@ const Library = (() => {
     const c = document.getElementById("lib-content");
     if (tab === "grammar") renderGrammar(c, lang);
     else if (tab === "sent") renderSentences(c, lang);
+    else if (tab === "dlg") renderDialogues(c, lang);
     else renderKanji(c, lang);
   }
 
@@ -173,6 +175,72 @@ const Library = (() => {
       for (const s of sents.slice(0, 40)) box.appendChild(sentRow(s, s.gp));
     }
     document.getElementById("kj-back").addEventListener("click", render);
+  }
+
+  /* ---------- dialogues ---------- */
+  function renderDialogues(c, lang) {
+    const list = Engine.dialoguesUpTo();
+    if (!list.length) { c.innerHTML = `<div class="lr-sub" style="padding:20px;text-align:center">${esc(App.t("lib_no_dlg"))}</div>`; return; }
+    c.innerHTML = `<div class="lr-sub" style="margin-bottom:10px">${
+      esc(App.t("lib_dlg_count").replace("{n}", list.length))}</div>`;
+    // grouped by city, because that is what the settings are organised around
+    for (const arc of ARCS) {
+      const here = list.filter(d => {
+        const g = GRAMMAR.find(x => x.id === d.gp);
+        return g && g.arc === arc.id;
+      });
+      if (!here.length) continue;
+      const h = document.createElement("div");
+      h.className = "arc-head";
+      h.innerHTML = `<span class="arc-jp">${esc(arc.jp)}</span>
+        <span class="arc-name">${esc(arc.city[lang])}</span>`;
+      c.appendChild(h);
+      for (const d of here) {
+        const b = document.createElement("button");
+        b.className = "lib-dlg-row";
+        b.innerHTML = `<div class="ld-where">${esc(d.where[lang])}</div>
+          <div class="ld-sub">${d.lines.length} ${esc(App.t("lib_dlg_lines"))}</div>`;
+        b.addEventListener("click", () => openDialogue(d, lang));
+        c.appendChild(b);
+      }
+    }
+  }
+
+  function openDialogue(d, lang) {
+    const c = document.getElementById("lib-content");
+    c.innerHTML = `<button class="btn small" id="dlg-back">‹ ${esc(App.t("back"))}</button>
+      <div class="dlg-where" style="margin-top:14px">${esc(d.where[lang])}</div>
+      <div class="dlg-lines" id="dlg-lines"></div>
+      <div class="why"><div class="why-t">💡</div>${esc(d.note[lang])}</div>
+      <button class="btn big" id="dlg-play">🔊 ${esc(App.t("dlg_play"))}</button>`;
+    toTop();
+    const box = document.getElementById("dlg-lines");
+    d.lines.forEach((l) => {
+      const parsed = Parse.sentence(l.dsl);
+      const row = document.createElement("div");
+      row.className = "dlg-line " + (l.sp === "A" ? "a" : "b");
+      const who = document.createElement("div");
+      who.className = "dlg-who"; who.textContent = l.sp;
+      const bub = document.createElement("div");
+      bub.className = "dlg-bubble";
+      bub.appendChild(jp(parsed, d.gp));
+      const tr = document.createElement("div");
+      tr.className = "dlg-fr"; tr.textContent = l[lang];
+      bub.appendChild(tr);
+      row.appendChild(who); row.appendChild(bub);
+      box.appendChild(row);
+    });
+    document.getElementById("dlg-back").addEventListener("click", () => render());
+    document.getElementById("dlg-play").addEventListener("click", () => {
+      // read the whole exchange through, one line at a time
+      let n = 0;
+      const step = () => {
+        if (n >= d.lines.length) return;
+        Voice.speak(Parse.sentence(d.lines[n++].dsl).surfK + "。");
+        setTimeout(step, 2000);
+      };
+      step();
+    });
   }
 
   return { render };

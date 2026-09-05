@@ -152,6 +152,63 @@ plausible wrong word drawn from vocabulary you've met. The bank has to be read r
 than exhausted. First encounters are left gentle, because there the guided build is the
 teaching.
 
+## What's in v1.9 — every sentence explains itself
+
+All **502 sentences** now carry a 💡 note. Before this, five did.
+
+The rule the whole file follows: a note is about **that sentence**, never a restatement of
+the lesson card above it — and the 4–6 notes under one grammar point deliberately say
+different things. One takes apart a particle's job, one catches a word's shade of meaning
+(母 is your own mother, お母さん is someone else's), one points at a trap you'd otherwise
+walk into (✗私はも, ✗高いでした, ✗ねこがあります), one explains where a kanji's reading comes
+from, one notes what a French speaker in particular will get wrong.
+
+Some are cultural (pointing at people is rude, so あの人 does the work), some etymological
+(月曜日 is the Moon's day, exactly like *lundi*), some are about how Japanese is actually
+spoken (ちょっと before a request turns an order into a favour). They live in
+**`data/notes.js`**, separate from the corpus, so a note can be reworded without touching
+the sentence the engine schedules against.
+
+Three things are checked mechanically on every release: every sentence has a note, every
+note has both languages, and no grammar point repeats the same note across its sentences.
+
+## What's in v2.0 — dialogues
+
+**50 dialogues, 219 lines**, added alongside the 502 sentences — nothing replaced. A
+sentence teaches a pattern in isolation; a dialogue shows what the pattern is *for*: who
+says it, what comes back, and how an exchange holds together.
+
+Five per city, and the setting is what finally makes the ten cities mean something —
+東京 is introductions, 横浜 is finding your way and paying for things, 鎌倉 is what's
+where and how many, 富士山 is getting about, 京都 is inviting and wanting, 大阪 is
+opinions, 広島 is comparing, 福岡 is asking and permitting, 北海道 is thinking and
+recounting.
+
+Two new exercises come out of them:
+
+- **💬 Que répond-il ?** The exchange so far is shown as a transcript and read aloud, and
+  you pick the line that comes next — **from four Japanese options**, so it's real
+  reading, not translation-matching. One distractor is usually another line from the same
+  dialogue, which makes the *position* matter, not just the vocabulary.
+- **🎭 À toi de parler.** Same transcript, but one line is yours: the French is given and
+  you produce the Japanese, typed or spoken. Production with a reason to speak.
+
+Both are marked as free practice — they score in the session but never move a grammar
+point's review schedule.
+
+**Browsable in the library**, under a Dialogues tab grouped by city, with the whole
+exchange, its 💡 note and a button to hear it read through.
+
+Each dialogue carries a note about the *pragmatics* — the part a grammar table can't
+tell you: はじめまして is said once per person and never again; そうですか means "I see"
+falling and "really?" rising; 日本語が上手ですね expects a modest denial, not a thank-you;
+おねがいします accepts an offer where ください would demand one.
+
+**Checked mechanically** (`dialogues_check.js`): every line parses, no dialogue uses
+vocabulary from later in the journey, every line is translated both ways, speakers
+alternate, and — after a real 「はじめまして、山田さんです」 slipped into the first draft —
+nobody introduces themselves with さん.
+
 ## Release checklist
 
 Bump `VERSION` in `sw.js` **and** `APP_VERSION` in `js/app.js` together.

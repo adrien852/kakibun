@@ -80,7 +80,8 @@ const Session = (() => {
   function kindLine(kind, extra) {
     const icons = { lesson:"⛩", tiles:"🎧", tiles_read:"🧩", cloze:"✏️", speak:"🎤",
                     transform:"🔁", spot:"🔍", reading:"🈯", debut:"✨",
-                    listen:"👂", produce:"🗣", vocab:"📖", kanjifill:"🈳" };
+                    listen:"👂", produce:"🗣", vocab:"📖", kanjifill:"🈳",
+                    reply:"💬", roleplay:"🎭" };
     const label = extra || App.t("kind_" + kind);
     return `<div class="prompt-kind"><span class="pk-ico">${icons[kind] || ""}</span>${esc(label)}</div>`;
   }
@@ -595,7 +596,8 @@ const Session = (() => {
         <div class="mic-hint" id="a-hint">${esc(canSpeak ? App.t("ans_hint_both") : App.t("ans_hint_type"))}</div>
         <div class="heard" id="a-heard"></div>
       </div>`,
-      bind() {
+      bind(bo) {
+        o = Object.assign({}, o, bo || {});
         const inp = $("a-inp"), kana = $("a-kana"), hint = $("a-hint"), heard = $("a-heard");
         let done = false;
         // seeing "watashi wa" become わたしは as you type is half the lesson
@@ -752,6 +754,118 @@ const Session = (() => {
     }
   }
 
+  /* ================= dialogues (v2.0) =================
+   * A sentence in isolation can be decoded. A line inside an exchange has to be
+   * UNDERSTOOD — you need to know what was just said to know what fits next.
+   */
+
+  /* the lines already spoken, rendered as a transcript */
+  function transcript(dlg, upTo, opts) {
+    const o = opts || {};
+    const lang = App.lang();
+    return `<div class="dlg-lines">` + dlg.lines.slice(0, upTo).map((l, n) => {
+      const p = Parse.sentence(l.dsl);
+      return `<div class="dlg-line ${l.sp === "A" ? "a" : "b"}">
+        <div class="dlg-who">${esc(l.sp)}</div>
+        <div class="dlg-bubble">
+          <div class="dlg-jp" data-n="${n}"></div>
+          ${o.tr ? `<div class="dlg-fr">${esc(l[lang])}</div>` : ""}
+        </div></div>`;
+    }).join("") + `</div>`;
+  }
+  function fillTranscript(root, dlg, upTo) {
+    root.querySelectorAll(".dlg-jp").forEach(el => {
+      const l = dlg.lines[+el.dataset.n];
+      const p = Parse.sentence(l.dsl);
+      el.innerHTML = jpHtml(p);
+      bindTaps(el, p, dlg.gp);
+    });
+  }
+  const speakLine = (l, rate) => Voice.speak(Parse.sentence(l.dsl).surfK + "。", rate);
+
+  function dlgHead(dlg) {
+    return `<div class="dlg-where">${esc(dlg.where[App.lang()])}</div>`;
+  }
+
+  /* ---------- reply: what does he say next? ---------- */
+  function showReply(item) {
+    const dlg = DIALOGUES[item.dlg];
+    const li = item.line;
+    const right = dlg.lines[li];
+    const parsed = Parse.sentence(right.dsl);
+    curParsed = parsed;
+    curCtx = { mode: "reply" };
+    const lang = App.lang();
+    const options = [right, ...Engine.replyChoices(dlg, li, 4)].sort(() => Math.random() - 0.5);
+    $("sess-body").innerHTML = `${kindLine("reply")}
+      ${dlgHead(dlg)}
+      ${transcript(dlg, li, { tr: true })}
+      <div class="dlg-next">${esc(App.t("reply_q").replace("{s}", right.sp))}</div>
+      <div class="opt-list" id="r-opts">${options.map((l, n) =>
+        `<button class="opt" data-n="${n}"><span class="opt-jp" data-p="${n}"></span></button>`).join("")}</div>`;
+    fillTranscript($("sess-body"), dlg, li);
+    // the options are rendered as Japanese, so this is real reading, not
+    // translation-matching
+    $("r-opts").querySelectorAll(".opt-jp").forEach(el => {
+      el.innerHTML = jpHtml(Parse.sentence(options[+el.dataset.p].dsl));
+    });
+    foot(`<button class="btn ghost" id="r-play">🔊 ${esc(App.t("replay"))}</button>`);
+    $("r-play").addEventListener("click", () => {
+      // replay the exchange so far, one line after another
+      let n = 0;
+      const step = () => { if (n < li) { speakLine(dlg.lines[n++]); setTimeout(step, 1800); } };
+      step();
+    });
+    setTimeout(() => { if (li > 0) speakLine(dlg.lines[li - 1]); }, 400);
+    $("r-opts").querySelectorAll(".opt").forEach(b => b.addEventListener("click", () => {
+      if ($("r-opts").classList.contains("locked")) return;
+      $("r-opts").classList.add("locked");
+      const ok = options[+b.dataset.n] === right;
+      b.classList.add(ok ? "right" : "wrong");
+      if (!ok) $("r-opts").querySelectorAll(".opt").forEach((x, n) => {
+        if (options[n] === right) x.classList.add("right");
+      });
+      setTimeout(() => feedback(ok && firstTry, parsed, item.gp,
+        `<div class="why"><div class="why-t">💡</div>${esc(dlg.note[lang])}</div>`), ok ? 350 : 900);
+    }));
+  }
+
+  /* ---------- roleplay: your line in the exchange ---------- */
+  function showRoleplay(item) {
+    const dlg = DIALOGUES[item.dlg];
+    const li = item.line;
+    const mine = dlg.lines[li];
+    const parsed = Parse.sentence(mine.dsl);
+    curParsed = parsed;
+    curCtx = { mode: "roleplay" };
+    const lang = App.lang();
+    const panel = answerPanel({ k: parsed.surfK, r: parsed.surfR }, parsed, graded);
+    $("sess-body").innerHTML = `${kindLine("roleplay")}
+      ${dlgHead(dlg)}
+      ${transcript(dlg, li, { tr: true })}
+      <div class="dlg-yours">
+        <div class="dlg-yours-l">${esc(App.t("roleplay_you").replace("{s}", mine.sp))}</div>
+        <div class="prod-fr">${esc(mine[lang])}</div>
+      </div>
+      ${panel.html}`;
+    fillTranscript($("sess-body"), dlg, li);
+    const api = panel.bind({ noFocus: true });
+    foot(`<button class="btn ghost" id="rp-skip">${esc(App.t("skip"))}</button>
+          <button class="btn big primary" id="a-check" disabled>${esc(App.t("check"))}</button>`);
+    $("a-check").addEventListener("click", api.submitTyped);
+    $("rp-skip").addEventListener("click", () => { Voice.cancel(); done(false, ""); });
+    setTimeout(() => { if (li > 0) speakLine(dlg.lines[li - 1]); }, 400);
+    function graded(r) { done(r.ok, r.how === "typed" ? r.text : ""); }
+    function done(ok, typed) {
+      Voice.cancel();
+      $("sess-foot").innerHTML = "";
+      if (!ok) firstTry = false;
+      feedback(ok && firstTry, parsed, item.gp,
+        (typed ? `<div class="fb-expl">${esc(App.t("ans_you_typed"))} ${esc(typed)}</div>` : "") +
+        `<div class="why"><div class="why-t">💡</div>${esc(dlg.note[lang])}</div>`);
+    }
+  }
+
   /* ---------- flow ---------- */
   function render() {
     WordPop.hide();
@@ -773,6 +887,8 @@ const Session = (() => {
       case "listen": return showListen(it);
       case "produce": return showProduce(it);
       case "vocab": return showVocab(it);
+      case "reply": return showReply(it);
+      case "roleplay": return showRoleplay(it);
       default: return showTiles(it, false);
     }
   }

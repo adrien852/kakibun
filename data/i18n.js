@@ -107,6 +107,13 @@ fr: {
   pos_n:"nom", pos_v1:"verbe", pos_v5:"verbe", pos_vk:"verbe", pos_vs:"verbe", pos_vs0:"verbe",
   pos_adji:"adjectif en -i", pos_adjna:"adjectif en -na", pos_adv:"adverbe",
   pos_q:"mot interrogatif", pos_dem:"démonstratif", pos_exp:"expression", pos_num:"nombre",
+  /* --- v2.0: dialogues --- */
+  kind_reply:"Que répond-il ?", kind_roleplay:"À toi de parler", kind_dialogue:"Dialogue",
+  reply_q:"Que dit {s} ensuite ?",
+  roleplay_you:"C'est à {s} — donc à toi :",
+  lib_dlg:"Dialogues", lib_dlg_count:"{n} dialogues débloqués",
+  lib_no_dlg:"Avance dans le voyage pour débloquer des dialogues !",
+  dlg_play:"Écouter le dialogue", lib_dlg_lines:"répliques",
   back:"Retour"
 },
 en: {
@@ -216,6 +223,13 @@ en: {
   pos_n:"noun", pos_v1:"verb", pos_v5:"verb", pos_vk:"verb", pos_vs:"verb", pos_vs0:"verb",
   pos_adji:"i-adjective", pos_adjna:"na-adjective", pos_adv:"adverb",
   pos_q:"question word", pos_dem:"demonstrative", pos_exp:"expression", pos_num:"number",
+  /* --- v2.0: dialogues --- */
+  kind_reply:"What does he say?", kind_roleplay:"Your turn to speak", kind_dialogue:"Dialogue",
+  reply_q:"What does {s} say next?",
+  roleplay_you:"It's {s}'s line — so it's yours:",
+  lib_dlg:"Dialogues", lib_dlg_count:"{n} dialogues unlocked",
+  lib_no_dlg:"Travel further to unlock dialogues!",
+  dlg_play:"Play the dialogue", lib_dlg_lines:"lines",
   back:"Back"
 }
 };
