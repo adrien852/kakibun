@@ -97,6 +97,16 @@ fr: {
   debut_intro:"Ces kanji viennent d'arriver de Kakikana. On les revoit dans des phrases que tu connais déjà.",
   kj_sentences:"{n} phrases", kj_in_sent:"Dans tes phrases", kj_none_yet:"Pas encore dans une phrase débloquée.",
   res_solid:"consolidé !", solid_toast:"Consolidé !",
+  /* --- v1.8: the no-tile modes --- */
+  kind_listen:"Écoute", kind_produce:"Dis-le en japonais", kind_vocab:"Vocabulaire",
+  listen_q:"Qu'est-ce que tu entends ?",
+  ans_placeholder:"tape en rōmaji…",
+  ans_hint_both:"Écris en rōmaji, ou touche le micro.",
+  ans_hint_type:"Écris la réponse en rōmaji — les kana apparaissent dessous.",
+  ans_you_typed:"Tu as écrit :",
+  pos_n:"nom", pos_v1:"verbe", pos_v5:"verbe", pos_vk:"verbe", pos_vs:"verbe", pos_vs0:"verbe",
+  pos_adji:"adjectif en -i", pos_adjna:"adjectif en -na", pos_adv:"adverbe",
+  pos_q:"mot interrogatif", pos_dem:"démonstratif", pos_exp:"expression", pos_num:"nombre",
   back:"Retour"
 },
 en: {
@@ -196,6 +206,16 @@ en: {
   debut_intro:"These kanji just arrived from Kakikana. Let's meet them again in sentences you already know.",
   kj_sentences:"{n} sentences", kj_in_sent:"In your sentences", kj_none_yet:"Not in an unlocked sentence yet.",
   res_solid:"solidified!", solid_toast:"Solidified!",
+  /* --- v1.8: the no-tile modes --- */
+  kind_listen:"Listening", kind_produce:"Say it in Japanese", kind_vocab:"Vocabulary",
+  listen_q:"What do you hear?",
+  ans_placeholder:"type in rōmaji…",
+  ans_hint_both:"Type it in rōmaji, or tap the mic.",
+  ans_hint_type:"Type the answer in rōmaji — the kana appear below.",
+  ans_you_typed:"You typed:",
+  pos_n:"noun", pos_v1:"verb", pos_v5:"verb", pos_vk:"verb", pos_vs:"verb", pos_vs0:"verb",
+  pos_adji:"i-adjective", pos_adjna:"na-adjective", pos_adv:"adverb",
+  pos_q:"question word", pos_dem:"demonstrative", pos_exp:"expression", pos_num:"number",
   back:"Back"
 }
 };

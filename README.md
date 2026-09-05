@@ -121,6 +121,37 @@ progression* (export / restore), which is what v1.2 added and what never needed 
 Upgrading is safe: a save carrying the old relay URL and mined-word list has both
 stripped on load, and nothing else is touched.
 
+## What's in v1.8 — answers you produce, not answers you spot
+
+Tiles and four buttons leak. The option set *is* the answer, so a sentence can be
+rebuilt from tile-count and shape without ever reading the prompt. Three new modes fix
+that by changing the channel: the answer has to be **produced** — spoken or typed — or,
+for listening, understood from audio alone.
+
+- **👂 Écoute.** The sentence is played and *nothing is written on screen*. You pick what
+  it meant among four French readings, and the distractors come from other sentences of
+  the **same grammar point**, so the pattern can't be the clue — only the actual words
+  settle it. Then the Japanese is revealed.
+- **🗣 Dis-le en japonais.** A French sentence, a blank field, and a mic. Type it in
+  rōmaji and the kana appear underneath as you go (`watashi wa` → わたしは), or just say
+  it. No options, nothing to guess from.
+- **📖 Vocabulaire.** A French word — *manger*, *étudiant* — said or typed back in
+  Japanese. Drawn only from words the journey has actually introduced. These score in the
+  session but never move a grammar point's review schedule: fumbling a word isn't
+  evidence about a grammar point.
+
+**Typing Japanese, forgivingly.** `js/kana.js` is a wāpuro rōmaji converter — the way
+Japanese is really typed, and the same rōmaji you already read in the library. It accepts
+both spellings of every ambiguous row (shi/si, tsu/tu, fu/hu, ji/zi), and it forgives the
+three particles whose spelling and sound disagree: は read "wa", へ read "e", を read "o"
+all accept either. What it does **not** forgive is a real mistake — が for は, で for に,
+the wrong word — those still come out wrong.
+
+**And the tile modes got harder.** Reviews now deal spare tiles: extra particles *and* a
+plausible wrong word drawn from vocabulary you've met. The bank has to be read rather
+than exhausted. First encounters are left gentle, because there the guided build is the
+teaching.
+
 ## Release checklist
 
 Bump `VERSION` in `sw.js` **and** `APP_VERSION` in `js/app.js` together.

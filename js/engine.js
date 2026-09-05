@@ -27,7 +27,8 @@ const Engine = (() => {
     kakikana: null,
     stats: { prt: {}, form: {}, mode: {} },
     stamps: {}, exams: [],
-    kanjiSeen: null, newKanji: []
+    kanjiSeen: null, newKanji: [],
+    vocabSeen: {}            // how often each word has been quizzed, for rotation
   });
 
   function migrate(s) {
@@ -38,6 +39,7 @@ const Engine = (() => {
     if (!s.exams) s.exams = [];
     if (s.kanjiSeen === undefined) s.kanjiSeen = null;
     if (!s.newKanji) s.newKanji = [];
+    if (!s.vocabSeen) s.vocabSeen = {};
     // v1.4–v1.6 kept a relay config and KakiBridge's mined words here; the sync
     // module is gone, so clear them out rather than carrying dead weight around
     // in every save (and, in sync's case, an old relay URL).
@@ -121,6 +123,73 @@ const Engine = (() => {
       if (sc < bestScore) { bestScore = sc; best = s; }
     }
     return best;
+  }
+
+  /* ---------- pools for the no-tile modes (v1.8) ----------
+   * The common thread: the answer has to be produced or genuinely understood,
+   * never inferred from the shape of the options. */
+
+  /* Four French translations for a listening question: the real one plus three
+   * from OTHER sentences of the same grammar point where possible. Same-point
+   * distractors share the pattern, so the pattern can't be the clue — only
+   * hearing the actual words settles it. */
+  function listenChoices(sent, n) {
+    const want = n || 4;
+    const near = sentencesFor(sent.gp).filter(s => s.i !== sent.i);
+    const gi = GRAMMAR.findIndex(g => g.id === sent.gp);
+    const wider = SENTENCES.filter(s => {
+      if (s.i === sent.i || s.gp === sent.gp) return false;
+      const j = GRAMMAR.findIndex(g => g.id === s.gp);
+      return j >= 0 && j <= Math.max(gi, 4) && Math.abs(j - gi) <= 12;
+    });
+    const seen = new Set([sent.fr]);
+    const out = [];
+    for (const pool of [near, wider]) {
+      for (const s of pool.slice().sort(() => Math.random() - 0.5)) {
+        if (out.length >= want - 1) break;
+        if (seen.has(s.fr)) continue;         // never two options meaning the same
+        seen.add(s.fr); out.push(s);
+      }
+    }
+    return out;
+  }
+
+  /* Words met in sentences already unlocked — the vocabulary quiz's corpus.
+   * Built from the sentences rather than the whole lexicon so it never asks
+   * for a word the journey hasn't introduced yet. */
+  let vocabCache = null;
+  function vocabPool() {
+    const cur = currentIndex();
+    if (vocabCache && vocabCache.cur === cur) return vocabCache.list;
+    const ids = new Set();
+    for (const s of SENTENCES) {
+      const gi = GRAMMAR.findIndex(g => g.id === s.gp);
+      if (gi < 0 || gi > cur) continue;
+      for (const tok of Parse.sentence(s.dsl).toks) {
+        if (tok.type !== "w" || !tok.lex || !tok.lex.id) continue;
+        const e = LEXICON[tok.lex.id];
+        // skip the copula and bare numbers: "です" and "three" make poor prompts
+        if (!e || !e.fr || e.pos === "cop" || e.pos === "num") continue;
+        ids.add(tok.lex.id);
+      }
+    }
+    const list = [...ids].map(id => LEXICON[id]);
+    vocabCache = { cur, list };
+    return list;
+  }
+
+  /* Least-recently-quizzed first, so the pool rotates instead of repeating. */
+  function pickVocab(count) {
+    const pool = vocabPool();
+    if (!pool.length) return [];
+    const seen = state.vocabSeen || (state.vocabSeen = {});
+    return pool.slice()
+      .sort((a, b) => (seen[a.id] || 0) - (seen[b.id] || 0) || Math.random() - 0.5)
+      .slice(0, count || 1);
+  }
+  function noteVocab(id) {
+    const seen = state.vocabSeen || (state.vocabSeen = {});
+    seen[id] = (seen[id] || 0) + 1;
   }
 
   function sentenceCaps(sent) {
@@ -247,7 +316,9 @@ const Engine = (() => {
       // maintenance: recognition + production, never the easy guided tiles
       if (caps.prt) { rot.push("cloze"); if (spotCandidates(sent).length) rot.push("spot"); }
       if (g.tf && caps.tf) rot.push("transform");
-      rot.push("speak", "tiles");
+      // produce and listen carry the most weight here: at maintenance the point
+      // is whether it can be recalled and understood, not re-recognised
+      rot.push("produce", "listen", "speak", "tiles");
       const showAll = state.settings.showAllKanji || !Bridge.hasInfo();
       if (readingCandidates(sent, showAll).length) rot.push("reading");
       if (kanjiFillCandidates(sent, showAll).length && learnedKanjiPool(showAll).length >= 4)
@@ -256,6 +327,9 @@ const Engine = (() => {
       if (caps.prt) rot.push("cloze");
       if (g.tf && caps.tf) rot.push("transform");
       rot.push("speak", "tiles");
+      // once a point is no longer brand new, ask for it back rather than
+      // offering it: production and listening arrive from the third encounter
+      if (p.enc >= 3) rot.push("produce", "listen");
       const showAll2 = state.settings.showAllKanji || !Bridge.hasInfo();
       if (p.enc >= 3 && kanjiFillCandidates(sent, showAll2).length &&
           learnedKanjiPool(showAll2).length >= 4) rot.push("kanjifill");
@@ -296,6 +370,12 @@ const Engine = (() => {
       items.push({ kind: modeFor(g.id, sent, items.length), gp: g.id, sent: sent.i,
                    maint: p.tier >= 1 });
     }
+    // A couple of vocabulary questions per session. They are marked `free`:
+    // they score and feed the stats, but a word you fumble must not push a
+    // grammar point's review schedule around — different thing being tested.
+    const words = pickVocab(items.length >= 6 ? 2 : 1);
+    for (const w of words) items.push({ kind: "vocab", word: w.id, free: true });
+
     const head = startNew ? Math.min(5, items.length) : 0;
     const tail = items.slice(head).sort(() => Math.random() - 0.5);
     return items.slice(0, head).concat(tail);
@@ -513,6 +593,7 @@ const Engine = (() => {
   return { load, save, state: () => state, point, currentIndex, isUnlocked, isLearned,
            duePoints, learningDue, sentencesFor, sentKanji, pickSentence, sentenceCaps,
            readingCandidates, spotCandidates, kanjiFillCandidates,
+           listenChoices, vocabPool, pickVocab, noteVocab,
            kanjiDistractors, learnedKanjiPool, modeFor, buildSession, buildStrengthen, buildKanjiDebut,
            record, recordStats, noteSeen, masteryProgress, streak, stats,
            arcPoints, arcUnlocked, hasStamp, stampCount, grandUnlocked, recordExam,

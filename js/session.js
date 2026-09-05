@@ -1,5 +1,6 @@
 /* Kakibun — session runner.
  * Modes: lesson · tiles_read · tiles · cloze · transform · speak · spot · reading
+ *        kanjifill · listen · produce · vocab   (the last three answer without tiles)
  * Variants via opts: {exam:{arc}} no hints / no retries / scored
  *                    {drill:true} Renforcer   {debut:{chars}} new-kanji session
  */
@@ -78,7 +79,8 @@ const Session = (() => {
 
   function kindLine(kind, extra) {
     const icons = { lesson:"⛩", tiles:"🎧", tiles_read:"🧩", cloze:"✏️", speak:"🎤",
-                    transform:"🔁", spot:"🔍", reading:"🈯", debut:"✨" };
+                    transform:"🔁", spot:"🔍", reading:"🈯", debut:"✨",
+                    listen:"👂", produce:"🗣", vocab:"📖", kanjifill:"🈳" };
     const label = extra || App.t("kind_" + kind);
     return `<div class="prompt-kind"><span class="pk-ico">${icons[kind] || ""}</span>${esc(label)}</div>`;
   }
@@ -97,12 +99,13 @@ const Session = (() => {
 
     const lang = App.lang();
     const sent = curItem.sent != null ? SENTENCES[curItem.sent] : null;
+    const gloss = sent ? sent[lang] : (curItem.word && LEXICON[curItem.word] ? LEXICON[curItem.word][lang] : "");
     const box = document.createElement("div");
     box.className = "fb " + (ok ? "good" : "bad");
     box.innerHTML = `<div class="fb-head">${ok ? esc(App.pickOk()) : esc(App.t("bad"))}</div>
       ${!ok ? `<div class="wp-note">${esc(App.t("answer_was"))}</div>` : ""}
       <div class="fb-jp"></div>
-      ${sent ? `<div class="translation">${esc(sent[lang])}</div>` : ""}
+      ${gloss ? `<div class="translation">${esc(gloss)}</div>` : ""}
       ${!isExam() && sent && sent.note ? `<div class="why"><div class="why-t">💡</div>${esc(sent.note[lang])}</div>` : ""}
       ${curBad.length && ok ? `<div class="fb-expl">${esc(App.t("speak_watch"))} <b>${
           curBad.map(i => esc(parsed.toks[i].surfK != null ? parsed.toks[i].surfK : parsed.toks[i].surfR)).join(" · ")}</b></div>` : ""}
@@ -111,8 +114,9 @@ const Session = (() => {
     $("sess-body").appendChild(box);
     bindTaps(box, parsed, gpId);
 
-    if (opts.free) {
-      // library read-aloud practice: feedback only, never touches scheduling
+    if (opts.free || curItem.free) {
+      // library read-aloud, and the vocabulary quiz: these score inside the
+      // session and feed the stats, but never move a grammar point's schedule
       Engine.recordStats(curCtx, ok);
     } else if (!isExam()) {
       const ev = Engine.record(gpId, ok, curCtx);
@@ -172,12 +176,25 @@ const Session = (() => {
     const showTr = withText && !isExam();
     const target = parsed.toks.filter(t => t.type !== "punct");
     const p = Engine.point(item.gp);
+    /* Decoys, for a reason worth stating: without them the bank IS the answer.
+     * Every tile gets used exactly once, so the count alone tells you how long
+     * the sentence is, and a lone particle in the bank is obviously the one
+     * that goes in. Spare tiles — particles AND words — mean the bank has to be
+     * read rather than exhausted. Kept off the very first encounters, where the
+     * guided build is the teaching. */
     let distract = [];
     if (p.enc >= 2 || isExam()) {
-      const used = new Set(target.filter(t => t.type === "p").map(t => t.surfR));
-      const pool = ["は","が","を","に","で","へ","と","も"].filter(x => !used.has(x));
+      const usedP = new Set(target.filter(t => t.type === "p").map(t => t.surfR));
+      const pool = ["は","が","を","に","で","へ","と","も","か","の"].filter(x => !usedP.has(x));
       distract = pool.sort(() => Math.random() - 0.5).slice(0, 2)
         .map(x => ({ type: "p", surfK: null, surfR: x }));
+      // a plausible wrong WORD too, drawn from vocabulary he has actually met
+      const usedW = new Set(target.filter(t => t.type === "w").map(t => t.surfR));
+      const wordPool = Engine.vocabPool().filter(e => !usedW.has(e.r));
+      if (wordPool.length) {
+        const e = wordPool[Math.floor(Math.random() * wordPool.length)];
+        distract.push({ type: "w", surfK: e.k || null, surfR: e.r, lex: e });
+      }
     }
     const combined = target.concat(distract);      // data-n indexes THIS array
     const shuffled = combined.map((t, n) => ({ t, n })).sort(() => Math.random() - 0.5);
@@ -554,6 +571,187 @@ const Session = (() => {
     });
   }
 
+  /* ================= no-tile modes (v1.8) =================
+   * Tiles and four buttons leak: the options ARE the answer, so a sentence can
+   * be rebuilt from tile-count and shape without reading the prompt. These
+   * three make the answer something you produce — spoken or typed — or, for
+   * listening, something only the audio can tell you.
+   */
+
+  /* Shared answer bar: a rōmaji field with a live kana preview, and a mic when
+   * one is available. Either channel can answer; whichever he uses first wins. */
+  function answerPanel(target, parsed, onGraded, o) {
+    o = o || {};
+    const canSpeak = Voice.available() && Engine.state().settings.voiceIn;
+    return {
+      html: `<div class="ans-wrap">
+        <div class="ans-bar">
+          <input class="ans-inp" id="a-inp" type="text" inputmode="latin"
+                 autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+                 placeholder="${esc(App.t("ans_placeholder"))}">
+          ${canSpeak ? `<button class="mic-btn small" id="a-mic">🎤</button>` : ""}
+        </div>
+        <div class="ans-kana" id="a-kana"></div>
+        <div class="mic-hint" id="a-hint">${esc(canSpeak ? App.t("ans_hint_both") : App.t("ans_hint_type"))}</div>
+        <div class="heard" id="a-heard"></div>
+      </div>`,
+      bind() {
+        const inp = $("a-inp"), kana = $("a-kana"), hint = $("a-hint"), heard = $("a-heard");
+        let done = false;
+        // seeing "watashi wa" become わたしは as you type is half the lesson
+        const preview = () => {
+          const v = inp.value.trim();
+          kana.textContent = v ? Kana.toKana(v) : "";
+          const btn = $("a-check");
+          if (btn) btn.disabled = !v;
+        };
+        inp.addEventListener("input", preview);
+        inp.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); submitTyped(); } });
+        setTimeout(() => { if (!o.noFocus) inp.focus(); }, 250);
+
+        function submitTyped() {
+          if (done) return;
+          const v = inp.value.trim();
+          if (!v) return;
+          done = true;
+          const ok = Kana.same(v, target.r);
+          onGraded({ ok, how: "typed", text: Kana.toKana(v) });
+        }
+        function markUndone() { done = false; }
+
+        if (canSpeak) {
+          let listening = false;
+          $("a-mic").addEventListener("click", () => {
+            if (listening || done) return;
+            Voice.stop();
+            listening = true;
+            $("a-mic").classList.add("rec");
+            hint.textContent = App.t("speak_listening");
+            Voice.listen(
+              (alts) => {
+                listening = false; $("a-mic").classList.remove("rec");
+                let best = null;
+                for (const a of alts) {
+                  // a single word has no sentence to align against, so grade the
+                  // reading directly; a full sentence gets the token-level matcher
+                  const g = parsed
+                    ? Voice.grade(a, parsed)
+                    : { ok: Voice.match(a, target.k, target.r), score: 1, bad: [] };
+                  if (!best || (g.ok && !best.g.ok) || (g.ok === best.g.ok && g.score > best.g.score))
+                    best = { g, text: a };
+                }
+                if (!best) return;
+                heard.textContent = App.t("speak_heard") + " " + best.text;
+                if (done) return;
+                done = true;
+                curBad = best.g.bad || [];
+                onGraded({ ok: best.g.ok, how: "spoken", text: best.text, grade: best.g });
+              },
+              (got) => {
+                listening = false; $("a-mic").classList.remove("rec");
+                if (!got && !done) hint.textContent = App.t("speak_nothing");
+              },
+              () => {
+                listening = false; $("a-mic").classList.remove("rec");
+                hint.textContent = App.t("speak_no_sr");
+              }
+            );
+          });
+        }
+        return { submitTyped, markUndone, value: () => inp.value.trim() };
+      }
+    };
+  }
+
+  /* ---------- listen: no text on screen at all ---------- */
+  function showListen(item) {
+    const sent = SENTENCES[item.sent];
+    const parsed = Parse.sentence(sent.dsl);
+    curParsed = parsed;
+    curCtx = { mode: "listen" };
+    const lang = App.lang();
+    const others = Engine.listenChoices(sent, 4);
+    const options = [sent, ...others].sort(() => Math.random() - 0.5);
+    $("sess-body").innerHTML = `${kindLine("listen")}
+      <div class="listen-hint">${esc(App.t("listen_q"))}</div>
+      <button class="audio-big" id="l-play">🔊</button>
+      <div class="opt-list" id="l-opts">${options.map((s, n) =>
+        `<button class="opt" data-n="${n}">${esc(s[lang])}</button>`).join("")}</div>`;
+    const play = (rate) => tts(parsed, rate);
+    $("l-play").addEventListener("click", () => play());
+    setTimeout(() => play(), 450);
+    foot(`<button class="btn ghost" id="l-slow">🐢 ${esc(App.t("replay"))}</button>`);
+    $("l-slow").addEventListener("click", () => play(0.6));
+    $("l-opts").querySelectorAll(".opt").forEach(b => b.addEventListener("click", () => {
+      if ($("l-opts").classList.contains("locked")) return;
+      $("l-opts").classList.add("locked");
+      const chosen = options[+b.dataset.n];
+      const ok = chosen.i === sent.i;
+      b.classList.add(ok ? "right" : "wrong");
+      if (!ok) $("l-opts").querySelectorAll(".opt").forEach((x, n) => {
+        if (options[n].i === sent.i) x.classList.add("right");
+      });
+      setTimeout(() => feedback(ok && firstTry, parsed, item.gp), ok ? 350 : 800);
+    }));
+  }
+
+  /* ---------- produce: French in, Japanese out ---------- */
+  function showProduce(item) {
+    const sent = SENTENCES[item.sent];
+    const parsed = Parse.sentence(sent.dsl);
+    curParsed = parsed;
+    curCtx = { mode: "produce" };
+    const lang = App.lang();
+    const panel = answerPanel({ k: parsed.surfK, r: parsed.surfR }, parsed, graded);
+    $("sess-body").innerHTML = `${kindLine("produce")}
+      <div class="prod-fr">${esc(sent[lang])}</div>
+      ${panel.html}`;
+    const api = panel.bind();
+    foot(`<button class="btn ghost" id="p-skip">${esc(App.t("skip"))}</button>
+          <button class="btn big primary" id="a-check" disabled>${esc(App.t("check"))}</button>`);
+    $("a-check").addEventListener("click", api.submitTyped);
+    $("p-skip").addEventListener("click", () => { Voice.cancel(); feedback(false, parsed, item.gp); });
+    function graded(r) {
+      Voice.cancel();
+      $("sess-foot").innerHTML = "";
+      if (!r.ok) firstTry = false;
+      feedback(r.ok && firstTry, parsed, item.gp,
+        r.how === "typed" ? `<div class="fb-expl">${esc(App.t("ans_you_typed"))} ${esc(r.text)}</div>` : "");
+    }
+  }
+
+  /* ---------- vocabulary: a French word, said or typed in Japanese ---------- */
+  function showVocab(item) {
+    const w = LEXICON[item.word];
+    if (!w) return next();
+    const lang = App.lang();
+    // one-token stand-in so the feedback screen can render and speak the word
+    const tok = { type: "w", surfK: w.k || null, surfR: w.r, lex: w };
+    const parsed = { toks: [tok], surfK: w.k || w.r, surfR: w.r };
+    curParsed = parsed;
+    curCtx = { mode: "vocab" };
+    Engine.noteVocab(w.id);
+    const panel = answerPanel({ k: w.k || w.r, r: w.r }, null, graded);
+    $("sess-body").innerHTML = `${kindLine("vocab")}
+      <div class="vocab-card">
+        <div class="vocab-fr">${esc(w[lang])}</div>
+        <div class="vocab-pos">${esc(App.t("pos_" + w.pos) !== "pos_" + w.pos ? App.t("pos_" + w.pos) : "")}</div>
+      </div>
+      ${panel.html}`;
+    const api = panel.bind();
+    foot(`<button class="btn ghost" id="v-skip">${esc(App.t("skip"))}</button>
+          <button class="btn big primary" id="a-check" disabled>${esc(App.t("check"))}</button>`);
+    $("a-check").addEventListener("click", api.submitTyped);
+    $("v-skip").addEventListener("click", () => { Voice.cancel(); feedback(false, parsed, item.gp); });
+    function graded(r) {
+      Voice.cancel();
+      $("sess-foot").innerHTML = "";
+      if (!r.ok) firstTry = false;
+      feedback(r.ok && firstTry, parsed, item.gp,
+        r.how === "typed" ? `<div class="fb-expl">${esc(App.t("ans_you_typed"))} ${esc(r.text)}</div>` : "");
+    }
+  }
+
   /* ---------- flow ---------- */
   function render() {
     WordPop.hide();
@@ -572,6 +770,9 @@ const Session = (() => {
       case "spot": return showSpot(it);
       case "reading": return showReading(it);
       case "kanjifill": return showKanjiFill(it);
+      case "listen": return showListen(it);
+      case "produce": return showProduce(it);
+      case "vocab": return showVocab(it);
       default: return showTiles(it, false);
     }
   }
@@ -602,11 +803,18 @@ const Session = (() => {
     $("res-done").addEventListener("click", close);
   }
 
-  /* speak needs a mic + the setting on; otherwise fall back to tiles */
+  /* speak needs a mic + the setting on; listen needs a voice to speak WITH.
+   * produce and vocab always work — the typed answer needs neither. */
   function fixModes(list) {
     if (opts.noVoiceFallback) return list;
-    const ok = Voice.available() && Engine.state().settings.voiceIn;
-    return list.map(it => (!ok && it.kind === "speak") ? Object.assign({}, it, { kind: "tiles" }) : it);
+    const mic = Voice.available() && Engine.state().settings.voiceIn;
+    const tts = typeof speechSynthesis !== "undefined";
+    return list.map(it => {
+      if (!mic && it.kind === "speak") return Object.assign({}, it, { kind: "produce" });
+      if (!tts && (it.kind === "listen" || it.kind === "tiles"))
+        return Object.assign({}, it, { kind: it.kind === "listen" ? "produce" : "tiles_read" });
+      return it;
+    });
   }
 
   function start(list, o) {
