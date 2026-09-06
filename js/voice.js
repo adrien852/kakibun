@@ -26,10 +26,18 @@ const Voice = (() => {
   }
   const stop = () => { if (window.speechSynthesis) speechSynthesis.cancel(); };
 
-  /* ---------- matcher ---------- */
-  const strip = (s) => Parse.fold((s || "")
+  /* ---------- matcher ----------
+   * Speech recognition and the corpus spell the same sound two ways: the
+   * recogniser hears ええ and writes えー, コーヒー where a reading says こおひい.
+   * Both sides go through Kana.norm's long-mark expansion first, so ー becomes
+   * the vowel it lengthens — otherwise a perfectly said ええ aligns as one
+   * character out of two and gets flagged as mispronounced.
+   *
+   * は/へ/を are folded to わ/え/お for the same reason: those are the sounds,
+   * and the recogniser is transcribing sound. */
+  const strip = (s) => Kana.speech(Parse.fold((s || "")
     .replace(/[。、．，,.!?！？\s「」『』]/g, "")
-    .toLowerCase());
+    .toLowerCase()));
 
   // one-slip tolerance: long vowels (ー/duplicated vowel) and small-kana slips
   function lenient(a, b) {

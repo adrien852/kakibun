@@ -141,16 +141,21 @@ const Kana = (() => {
    * ー is why コーヒー needs the spelling-out: an IME wants "ko-hi-", but a
    * learner types what he hears, "koohii". Turning ー into the vowel it holds
    * makes both land on こおひい. */
-  function norm(s) {
+  /* ー → the vowel it lengthens, は/へ/を → the sounds they actually make.
+   * Kept separate from norm() because speech grading compares against the KANJI
+   * surface too, so it must not drop everything that isn't a kana. */
+  function speech(s) {
     let k = Parse.fold(String(s || ""));
     let out = "";
     for (const ch of k) {
       if (ch === "ー" || ch === "－") out += VOWEL_OF[out[out.length - 1]] || "";
       else out += ch;
     }
-    return out
-      .replace(/[はへを]/g, (c) => ({ "は": "わ", "へ": "え", "を": "お" }[c]))
-      .replace(/[^ぁ-ゖ]/g, "");
+    return out.replace(/[はへを]/g, (c) => ({ "は": "わ", "へ": "え", "を": "お" }[c]));
+  }
+
+  function norm(s) {
+    return speech(s).replace(/[^ぁ-ゖ]/g, "");
   }
 
   /* `a` is what was typed (rōmaji or kana), `b` the expected reading. */
@@ -161,6 +166,6 @@ const Kana = (() => {
     return tries.some(t => norm(t) === want);
   }
 
-  return { toKana, variants, isRomaji, norm, same };
+  return { toKana, variants, isRomaji, norm, speech, same };
 })();
 if (typeof module !== "undefined") module.exports = { Kana };

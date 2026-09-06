@@ -444,4 +444,23 @@ W("gochisousama",null,"ごちそうさまでした","exp","merci pour le repas",
 W("moshimoshi",null,"もしもし","exp","allô","hello (on the phone)");
 W("chotto",null,"ちょっと","adv","un peu, un instant","a little, a moment");
 
-if (typeof module !== "undefined") module.exports = { LEXICON };
+/* ---------- words a prompt cannot choose between ----------
+ * In a production exercise the French (or English) is all you get, and for a
+ * few words it simply does not decide: "Oui" is はい and it is also ええ. Both
+ * are correct Japanese in the same slot, so grading accepts either and the
+ * feedback then says which one the sentence itself used — the 💡 note explains
+ * the difference from there.
+ *
+ * Deliberately short. This is for FREE VARIATION only:
+ *   なに/なん is NOT here — the choice is phonologically determined (なん before
+ *     です・だ・の and counters), so accepting the other would teach a mistake.
+ *   それ/あれ is NOT here — near vs far is a real distinction, and the glosses
+ *     already mark it ("Cela" vs "Là-bas, c'est").
+ */
+const ALT_WORDS = [
+  ["hai", "ee"],         // oui — a register difference, both correct
+  ["namae", "onamae"],   // nom — お is a politeness prefix, not a different word
+  ["ikkai", "ichido"]    // une fois — もう一回 and もう一度 are both natural
+];
+
+if (typeof module !== "undefined") module.exports = { LEXICON, ALT_WORDS };

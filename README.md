@@ -209,6 +209,73 @@ vocabulary from later in the journey, every line is translated both ways, speake
 alternate, and — after a real 「はじめまして、山田さんです」 slipped into the first draft —
 nobody introduces themselves with さん.
 
+## What's in v2.1 — the journey stops being a list
+
+Three things that answer "where am I, and why open the app today?"
+
+**The map has a traveller.** The rail down each city is drawn in two halves — the part
+behind you in the season's colour, the part ahead in grey — with 🚶 standing on the stop
+you're on, and the map scrolls straight to him instead of dumping you at the top of Japan.
+Each city gets its landmark (東京 🗼, 横浜 ⚓, 鎌倉 🗿, 富士山 🗻, 京都 🏯, 大阪 ⛩,
+広島 🍢, 福岡 🕊, 北海道 🍜❄️), and a header says where you are and how far you've come.
+Stops that carry a dialogue are badged 💬.
+
+**The app knows what month it is.** 春 March–May · 夏 June–August · 秋 September–November ·
+冬 December–February, on the Japanese calendar-month convention. Deliberately restrained:
+the vermillion-on-cream palette doesn't change. The season supplies *one* accent colour —
+the rail you travel along, the traveller, the mission bars, the badge on the map header —
+plus a motif and its name. Repainting the whole interface four times a year would be noise;
+changing the thread you follow is enough. It's re-read whenever the app comes back to the
+front, so a PWA left open across a month boundary keeps up.
+
+**Three missions a day**, on the home screen. Finishing a session is always one of them;
+the other two are drawn from listening, production, vocabulary, speaking, dialogue and
+kanji readings — a nudge towards whichever mode you'd otherwise avoid. They're seeded off
+the date, so a reload doesn't reshuffle them, and every correct answer feeds them from
+`recordStats`, whatever mode it came from.
+
+The rule that took the most care: **a mission is only offered if it can actually be
+finished today.** Not just "the journey hasn't unlocked it yet" — the device counts too.
+With no microphone every speak card degrades to production, so "say 2 sentences aloud"
+would be a mission you're physically unable to complete, and it would block the day's
+"all three done" with it. Same for listening without a voice to speak with, and for kanji
+readings before any point is mastered. `v210.js` checks each of those, including that
+excluding one doesn't starve the roll down to two.
+
+## What's in v2.2 — three things the phone found
+
+**A production prompt has to be answerable.** Two sentences both read *"Oui, c'est ça."*
+and wanted different Japanese — はい、そうです in one place, ええ、そうです in the other —
+with nothing on screen to say which. Three fixes, in order of how permanent they are:
+
+- The familiar one now reads **"Oui (familier), c'est ça."**, which points at ええ.
+- `ALT_WORDS` in `data/lexicon.js` lists words a translation genuinely cannot choose
+  between — はい/ええ, 名前/お名前, 一回/一度 — and `Parse.altReadings()` rebuilds the
+  sentence with the swap, so either answer is accepted. The feedback then says which word
+  the sentence itself used, neutrally, with the 💡 note underneath explaining the
+  difference. Deliberately short: なに/なん is **not** in it (the choice is phonologically
+  determined, so accepting the other would teach a mistake) and neither is それ/あれ (near
+  vs far is real, and the glosses already mark it).
+- `release.js` now fails the build if any two sentences share a translation but want
+  different Japanese, unless `ALT_WORDS` makes the two interchangeable. There were exactly
+  two in the corpus — the はい/ええ pair, and "What is your job?" twice in English.
+
+**A correctly said ええ was being marked as mispronounced.** Speech recognition writes
+えー where the corpus writes ええ, and こおひい where it writes コーヒー — the same sound,
+spelled the other way. `Voice.strip` now runs both sides through `Kana.speech()`, which
+expands the long mark into the vowel it holds and folds は/へ/を to わ/え/お, because the
+recogniser is transcribing *sound*. Before, a perfect ええ aligned as one character out of
+two and got the red squiggle. Not his fault.
+
+**A sentence you have never seen is always assembled from tiles first.** The old rule was
+per grammar *point* (`p.enc <= 1`), so once a point was familiar one of its remaining
+sentences could arrive as a blank production box on its very first appearance. Worse, the
+new-point rotation ran four *different* sentences and put cloze on the third and transform
+on the fourth — new vocabulary, new word order and no scaffolding, all on first sight.
+Now `modeFor` returns tiles for any unseen sentence, and a new point introduces **two**
+sentences and comes back to those same two with the harder questions. Two met properly
+beat four met badly; the rest arrive in later reviews.
+
 ## Release checklist
 
 Bump `VERSION` in `sw.js` **and** `APP_VERSION` in `js/app.js` together.
@@ -220,5 +287,8 @@ match, `PRECACHE` and the disk agree in both directions (a listed file that does
 exist makes the service worker's install fail, which silently breaks updating),
 every `<script>` is precached and loaded in a workable order, every cross-module
 `Module.member` reference resolves, fr and en have the same i18n keys and every
-`App.t()` key exists, and the word popup's centring isn't wiped by its animation.
-`sync/` is exempt — it's the relay's source, not part of the app.
+`App.t()` key exists, every mission has a label and an icon in both languages (those
+are looked up as `t("mission_" + id)`, so the static key scan can't see them), every
+sentence carries a 💡 note that no other sentence under the same grammar point repeats,
+no two sentences share a translation while wanting different Japanese, every `ALT_WORDS`
+entry names real lexicon words, and the word popup's centring isn't wiped by its animation.

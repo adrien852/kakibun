@@ -1,5 +1,5 @@
 /* Kakibun — app shell: nav, home, i18n, boot. */
-const APP_VERSION = "2.0.0"; // keep in sync with sw.js VERSION
+const APP_VERSION = "2.2.0"; // keep in sync with sw.js VERSION
 const App = (() => {
   const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
   const $ = (id) => document.getElementById(id);
@@ -64,6 +64,26 @@ const App = (() => {
     $("stat-mastered-l").textContent = t("stat_mastered");
     $("stat-sentences-l").textContent = t("stat_sentences");
     $("stat-kanji-l").textContent = t("stat_kanji");
+
+    // today's three missions
+    const mis = Engine.missions();
+    const misCard = $("missions-card");
+    if (mis.length) {
+      misCard.hidden = false;
+      const allDone = mis.every(m => m.done);
+      misCard.classList.toggle("all-done", allDone);
+      $("missions-title").textContent = allDone ? t("missions_done") : t("missions_title");
+      $("missions-list").innerHTML = mis.map(m => {
+        const pct = Math.round(m.n / m.target * 100);
+        return `<div class="mis ${m.done ? "mis-done" : ""}">
+          <div class="mis-ico">${m.done ? "✅" : t("mission_ico_" + m.id)}</div>
+          <div class="mis-main">
+            <div class="mis-txt">${esc(t("mission_" + m.id).replace("{n}", m.target))}</div>
+            <div class="mis-bar"><i style="width:${pct}%"></i></div>
+          </div>
+          <div class="mis-n">${m.n}/${m.target}</div></div>`;
+      }).join("");
+    } else misCard.hidden = true;
 
     // due list
     const dueCard = $("due-card");
@@ -180,6 +200,7 @@ const App = (() => {
     Engine.load();
     Bridge.load(Engine.state());
     Engine.save();
+    Season.apply();
     applyLang();
     document.querySelectorAll(".nav-btn").forEach(b =>
       b.addEventListener("click", () => nav(b.dataset.nav)));
@@ -201,6 +222,7 @@ const App = (() => {
     // app is merely backgrounded — re-read whenever we come back to the front.
     const recheck = () => {
       if (document.hidden) return;
+      Season.apply();   // a PWA left open can cross a month boundary
       const r = Bridge.refresh(Engine.state());
       if (r.changed) {
         Engine.save();

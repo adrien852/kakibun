@@ -39,7 +39,7 @@ S("g05",1,"hai 、 soudesu","Oui, c'est ça.","Yes, that's right.");
 S("g05",1,"iie 、 chigaimasu","Non, ce n'est pas ça.","No, that's wrong.");
 S("g05",2,"hai 、 watashi は=top gakusei です","Oui, je suis étudiant(e).","Yes, I am a student.");
 S("g05",2,"iie 、 watashi は=top sensei desu.janai","Non, je ne suis pas professeur.","No, I am not a teacher.");
-S("g05",3,"ee 、 soudesu","Oui, c'est ça.","Yeah, that's right.");
+S("g05",3,"ee 、 soudesu","Oui (familier), c'est ça.","Yeah, that's right.");
 // g06 の
 S("g06",1,"watashi の=poss hon です","C'est mon livre.","It's my book.");
 S("g06",1,"tanaka の=poss kuruma です","C'est la voiture de M. Tanaka.","It's Mr Tanaka's car.");
@@ -62,7 +62,7 @@ S("g08",3,"watashi の=poss sensei は=top furansujin desu.janai","Mon professeu
 S("g09",1,"onamae は=top nan です か=q","Quel est votre nom ?","What is your name?");
 S("g09",2,"shigoto は=top nan です か=q","Quel est votre travail ?","What is your job?");
 S("g09",2,"namae は=top nan です か=q","Quel est son nom ?","What is the name?");
-S("g09",3,"anata の=poss shigoto は=top nan です か=q","Quel est votre métier ?","What is your job?");
+S("g09",3,"anata の=poss shigoto は=top nan です か=q","Quel est votre métier ?","What is your occupation?");
 // g10 だれですか・さん
 S("g10",1,"dare です か=q","Qui est-ce ?","Who is it?");
 S("g10",2,"tanaka は=top dare です か=q","Qui est M. Tanaka ?","Who is Mr Tanaka?");
@@ -319,7 +319,7 @@ S("g50",2,"nichiyoubi に=time kouen を=path sanpo.masenka","On se promène au 
 S("g50",3,"isshoni toshokan で=place benkyou.masenka","On étudie ensemble à la bibliothèque ?","Shall we study together at the library?");
 // g51 ましょう
 S("g51",1,"iku.mashou","Allons-y !","Let's go!");
-S("g51",1,"ee 、 taberu.mashou","Oui, mangeons !","Yes, let's eat!");
+S("g51",1,"ee 、 taberu.mashou","Oui (familier), mangeons !","Yeah, let's eat!");
 S("g51",2,"eki の=poss mae で=place au.mashou","Retrouvons-nous devant la gare.","Let's meet in front of the station.");
 S("g51",2,"isshoni kaeru.mashou","Rentrons ensemble.","Let's go home together.");
 S("g51",3,"sanji に=time au.mashou","Retrouvons-nous à 15 h.","Let's meet at 3.");

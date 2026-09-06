@@ -106,6 +106,38 @@ const Parse = (() => {
     return { toks, surfK, surfR };
   }
 
-  return { sentence, parseToken, align, kanjiBreakdown, readingType, fold, isKanji, readEq };
+  /* Equally-correct alternative surfaces for a sentence: the same sentence with
+   * one token swapped for a word the prompt could not have chosen between (see
+   * ALT_WORDS in data/lexicon.js). One swap at a time — a prompt is only ever
+   * ambiguous about one word, and combinations would multiply for nothing.
+   *
+   * Only an UNINFLECTED token is swapped: a conjugated form belongs to its own
+   * verb and the two words are no longer interchangeable. */
+  function altReadings(parsed) {
+    if (typeof ALT_WORDS === "undefined") return [];
+    const out = [];
+    parsed.toks.forEach((tok, i) => {
+      const lex = tok.lex;
+      if (!lex || tok.surfR !== lex.r) return;
+      const grp = ALT_WORDS.find(g => g.indexOf(lex.id) >= 0);
+      if (!grp) return;
+      for (const other of grp) {
+        if (other === lex.id) continue;
+        const w = LEXICON[other];
+        if (!w) continue;
+        out.push({
+          k: parsed.toks.map((t, j) => j === i ? (w.k || w.r)
+                : (t.surfK != null ? t.surfK : t.surfR)).join(""),
+          r: parsed.toks.map((t, j) => j === i ? w.r : t.surfR).join(""),
+          said: w,      // what the learner produced
+          want: lex     // what this sentence actually uses
+        });
+      }
+    });
+    return out;
+  }
+
+  return { sentence, parseToken, align, kanjiBreakdown, readingType, fold, isKanji, readEq,
+           altReadings };
 })();
 if (typeof module !== "undefined") module.exports = { Parse };

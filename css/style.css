@@ -7,6 +7,9 @@
   --blue:#3a6ea5; --blue-soft:#e9f0f8;
   --line:#e8e0d4; --shadow:0 2px 10px rgba(60,40,20,.08);
   --r:16px;
+  /* season.js overwrites these on the root every boot; the values here are
+     only what shows in the half-second before it runs, and in tests. */
+  --season:#c9622e; --season-soft:#fbeee6;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;padding:0}
@@ -63,17 +66,59 @@ b{font-weight:700}
 .due-row .due-name{flex:1;font-size:.92rem}
 .due-row .due-jp{color:var(--ink2);font-size:.85rem}
 
+/* a synonym was accepted — informative, not a scolding, so it stays neutral */
+.fb-alt{background:var(--gold-soft);border-radius:10px;padding:8px 10px;margin-top:8px}
+
+/* ============ MISSIONS (v2.1) ============ */
+.missions.all-done{background:linear-gradient(180deg,var(--season-soft),var(--card))}
+.mis-list{display:flex;flex-direction:column;gap:10px}
+.mis{display:flex;align-items:center;gap:10px}
+.mis-ico{width:26px;text-align:center;font-size:1.05rem}
+.mis-main{flex:1;min-width:0}
+.mis-txt{font-size:.86rem}
+.mis-done .mis-txt{color:var(--ink2);text-decoration:line-through}
+.mis-bar{height:4px;background:var(--line);border-radius:2px;margin-top:5px;overflow:hidden}
+.mis-bar i{display:block;height:100%;background:var(--season);border-radius:2px;transition:width .3s ease}
+.mis-done .mis-bar i{background:var(--green)}
+.mis-n{font-size:.75rem;color:var(--ink2);font-variant-numeric:tabular-nums}
+.res-missions{color:var(--season);font-weight:700}
+
 /* ============ MAP ============ */
 .map-scroll{overflow-x:hidden}
+
+/* the journey header: where you are, in what season, and how far along */
+.j-head{background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);
+  padding:14px 16px;margin-bottom:12px;text-align:center}
+.j-season{display:inline-block;font-size:.78rem;color:var(--ink2);
+  background:var(--season-soft);border-radius:999px;padding:3px 10px;margin-bottom:8px}
+.j-where{display:flex;align-items:baseline;justify-content:center;gap:8px;flex-wrap:wrap}
+.j-where .j-mark{font-size:1.5rem}
+.j-where .j-city{font-size:1.3rem;font-weight:800;color:var(--red-dark)}
+.j-where .j-city-fr{font-size:.9rem;color:var(--ink2)}
+.j-bar{height:6px;background:var(--line);border-radius:3px;margin:10px 0 6px;overflow:hidden}
+.j-bar i{display:block;height:100%;background:var(--season);border-radius:3px;transition:width .4s ease}
+.j-pct{font-size:.76rem;color:var(--ink2);font-variant-numeric:tabular-nums}
+
 .arc{margin-bottom:10px}
 .arc-head{display:flex;align-items:baseline;gap:10px;padding:12px 6px 6px}
+.arc-head .arc-mark{font-size:1.05rem}
 .arc-head .arc-jp{font-size:1.25rem;font-weight:800;color:var(--red-dark)}
 .arc-head .arc-name{color:var(--ink2);font-size:.9rem;flex:1}
 .arc-head .arc-count{font-size:.8rem;color:var(--ink2)}
 .arc-locked .arc-jp{color:#b9b0a4}
 .stations{position:relative;padding-left:34px}
+/* the rail in two halves: the whole line grey, then the travelled part
+   overpainted in the season's colour up to --rail (set per arc in map.js) */
 .stations:before{content:"";position:absolute;left:15px;top:0;bottom:0;width:3px;background:var(--line);border-radius:2px}
+.stations:after{content:"";position:absolute;left:15px;top:0;width:3px;height:var(--rail,0%);
+  background:var(--season);border-radius:2px;transition:height .4s ease}
 .station{position:relative;margin-bottom:8px}
+/* the traveller stands on the current station's dot */
+.station .traveller{position:absolute;left:-31px;top:-6px;font-size:1.15rem;
+  animation:bob 1.9s ease-in-out infinite;pointer-events:none}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+@media (prefers-reduced-motion:reduce){.station .traveller{animation:none}}
+.st-dlg{color:var(--season);font-weight:700}
 .station .dot{
   position:absolute;left:-27px;top:12px;width:17px;height:17px;border-radius:50%;
   background:#fff;border:3px solid var(--line);

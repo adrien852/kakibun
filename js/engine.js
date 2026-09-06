@@ -28,7 +28,8 @@ const Engine = (() => {
     stats: { prt: {}, form: {}, mode: {} },
     stamps: {}, exams: [],
     kanjiSeen: null, newKanji: [],
-    vocabSeen: {}            // how often each word has been quizzed, for rotation
+    vocabSeen: {},           // how often each word has been quizzed, for rotation
+    missions: null           // today's three goals; regenerated when the date turns
   });
 
   function migrate(s) {
@@ -40,6 +41,7 @@ const Engine = (() => {
     if (s.kanjiSeen === undefined) s.kanjiSeen = null;
     if (!s.newKanji) s.newKanji = [];
     if (!s.vocabSeen) s.vocabSeen = {};
+    if (s.missions === undefined) s.missions = null;
     // v1.4–v1.6 kept a relay config and KakiBridge's mined words here; the sync
     // module is gone, so clear them out rather than carrying dead weight around
     // in every save (and, in sync's case, an old relay URL).
@@ -75,6 +77,92 @@ const Engine = (() => {
       enc: 0, box: 0, due: 0, reps: 0, days: [], mastered: false, tier: 0, ok: 0, ko: 0
     };
     return state.points[id];
+  }
+
+  /* ---------- daily missions (v2.1) ----------
+   * Three small goals a day. The point is not the reward — there isn't one
+   * beyond a tick — but having a reason to open the app on a day you weren't
+   * planning to, and a nudge towards the modes you avoid.
+   *
+   * Every mission counts things the session already records, so nothing here
+   * needs its own bookkeeping beyond a per-day counter bag.
+   */
+  const MISSIONS = [
+    { id: "session",  target: 1,  ctr: "sessions", always: true },
+    { id: "correct",  target: 12, ctr: "ok" },
+    { id: "listen",   target: 3,  ctr: "listen" },
+    { id: "produce",  target: 3,  ctr: "produce" },
+    { id: "vocab",    target: 4,  ctr: "vocab" },
+    { id: "speak",    target: 2,  ctr: "speak" },
+    { id: "dialogue", target: 2,  ctr: "dialogue" },
+    { id: "reading",  target: 3,  ctr: "reading" }
+  ];
+
+  /* A mission is only offered if the thing it asks for can actually happen
+   * today. Two ways it might not: the journey hasn't unlocked that kind of
+   * question yet, or the device can't do it — no microphone means every speak
+   * card degrades to produce, so "say 2 sentences aloud" would be a mission you
+   * are physically unable to finish. An impossible mission is worse than no
+   * mission, because it also blocks the "all three done" of the whole day. */
+  const hasTTS = () => typeof speechSynthesis !== "undefined";
+  const hasMic = () => typeof Voice !== "undefined" && Voice.available() && state.settings.voiceIn;
+
+  function missionAvailable(m) {
+    const cur = currentIndex();
+    if (m.id === "dialogue") return dialoguesUpTo().length > 0;
+    if (m.id === "listen")
+      return hasTTS() && GRAMMAR.slice(0, cur).some(g => point(g.id).enc >= 3);
+    if (m.id === "produce") return GRAMMAR.slice(0, cur).some(g => point(g.id).enc >= 3);
+    if (m.id === "vocab") return vocabPool().length >= 4;
+    if (m.id === "speak") return cur > 0 && hasMic();
+    if (m.id === "reading") {
+      // reading questions only appear on a mastered point, and only where the
+      // sentence actually contains a kanji with more than one reading
+      const showAll = state.settings.showAllKanji || !Bridge.hasInfo();
+      return GRAMMAR.slice(0, cur).some(g => point(g.id).tier >= 1 &&
+        sentencesFor(g.id).some(s => readingCandidates(s, showAll).length));
+    }
+    return true;
+  }
+
+  /* Same three all day: seeded off the date so a reload doesn't reshuffle them. */
+  function rollMissions() {
+    const d = today();
+    let h = 0;
+    for (let i = 0; i < d.length; i++) h = (h * 31 + d.charCodeAt(i)) >>> 0;
+    const pool = MISSIONS.filter(m => !m.always && missionAvailable(m));
+    const picked = [MISSIONS.find(m => m.always)];
+    for (let k = 0; k < 2 && pool.length; k++) {
+      const idx = (h + k * 7) % pool.length;
+      picked.push(pool.splice(idx, 1)[0]);
+    }
+    state.missions = { date: d, ids: picked.map(m => m.id), ctr: {}, hailed: false };
+    return state.missions;
+  }
+
+  function missions() {
+    if (!state.missions || state.missions.date !== today()) rollMissions();
+    const m = state.missions;
+    return m.ids.map(id => {
+      const def = MISSIONS.find(x => x.id === id) || MISSIONS[0];
+      const n = Math.min(def.target, m.ctr[def.ctr] || 0);
+      return { id, n, target: def.target, done: n >= def.target };
+    });
+  }
+  const missionsDone = () => missions().every(m => m.done);
+
+  function bumpMission(ctr, by) {
+    if (!state.missions || state.missions.date !== today()) rollMissions();
+    const c = state.missions.ctr;
+    c[ctr] = (c[ctr] || 0) + (by || 1);
+  }
+  /* called when a session finishes */
+  function noteSession() { bumpMission("sessions"); save(); }
+  /* true exactly once, the moment the third mission lands */
+  function missionsJustFinished() {
+    if (!missionsDone() || state.missions.hailed) return false;
+    state.missions.hailed = true; save();
+    return true;
   }
 
   /* ---------- progression ---------- */
@@ -351,12 +439,20 @@ const Engine = (() => {
   }
 
   /* ---------- mode selection ---------- */
-  const LEARN_ROTATION = ["tiles_read", "tiles", "cloze", "transform", "speak"];
 
   function modeFor(gpId, sent, slot) {
     const p = point(gpId);
     const caps = sentenceCaps(sent);
     const g = GRAMMAR.find(x => x.id === gpId);
+
+    /* A sentence you have never seen is always assembled from tiles first.
+     * The old rule was per GRAMMAR POINT (`p.enc <= 1`), which meant that once
+     * a point was familiar, one of its remaining sentences could arrive as a
+     * blank production box on its very first appearance — new vocabulary, new
+     * word order and no scaffolding at once. Meeting new material is a reading
+     * problem; producing it is the next visit's job. */
+    if (!state.sentSeen[sent.i]) return p.enc === 0 && slot === 0 ? "tiles_read" : "tiles";
+
     const rot = [];
     if (p.tier >= 1) {
       // maintenance: recognition + production, never the easy guided tiles
@@ -394,17 +490,31 @@ const Engine = (() => {
     if (startNew) {
       const g = GRAMMAR[cur];
       items.push({ kind: "lesson", gp: g.id });
-      let used = [], slot = 0;
-      for (const m of LEARN_ROTATION) {
-        if (slot >= 4) break;
-        const sent = pickSentence(g.id, slot < 2 ? 1 : 2, used[used.length - 1]);
-        if (!sent) break;
-        const caps = sentenceCaps(sent);
-        let mode = m;
-        if (m === "cloze" && !caps.prt) mode = "tiles";
-        if (m === "transform" && !(g.tf && caps.tf)) mode = caps.prt ? "cloze" : "speak";
-        items.push({ kind: mode, gp: g.id, sent: sent.i });
-        used.push(sent.i); slot++;
+      /* Two sentences, each met TWICE: assembled from tiles first, then asked
+       * about once it has actually been read.
+       *
+       * The old rotation ran four DIFFERENT sentences and put cloze on the
+       * third and transform on the fourth — new vocabulary, new word order and
+       * no scaffolding, all on first sight. You cannot answer a question about
+       * a sentence you have not read yet. Two sentences met properly beat four
+       * met badly; the rest of the point's sentences arrive in later reviews. */
+      const a = pickSentence(g.id, 1);
+      const b = a ? (pickSentence(g.id, 1, a.i) || pickSentence(g.id, 2, a.i)) : null;
+      const intro = [a, b].filter(Boolean);
+      intro.forEach((s, n) =>
+        items.push({ kind: n === 0 ? "tiles_read" : "tiles", gp: g.id, sent: s.i }));
+      // second pass over the same sentences, now that they have been read
+      const asked = [];
+      for (const s of intro) {
+        const caps = sentenceCaps(s);
+        const opts = [];
+        if (caps.prt) opts.push("cloze");
+        if (g.tf && caps.tf) opts.push("transform");
+        opts.push("speak");
+        // prefer a kind this point hasn't already asked, so the pair varies
+        const mode = opts.find(o => asked.indexOf(o) < 0) || opts[0];
+        asked.push(mode);
+        items.push({ kind: mode, gp: g.id, sent: s.i });
       }
     }
     const maxReviews = startNew ? 5 : 9;
@@ -487,11 +597,23 @@ const Engine = (() => {
     if (ok) e.ok++; else e.ko++;
   }
   /* ctx: {prt:"に.exist"} {form:"mashita"} {mode:"cloze"} — diagnostic only. */
+  /* every correct answer feeds today's missions, whatever mode it came from */
+  function noteMissionAnswer(ctx, ok) {
+    if (!ok || !ctx || !ctx.mode) return;
+    bumpMission("ok");
+    const m = ctx.mode;
+    if (m === "reply" || m === "roleplay") bumpMission("dialogue");
+    else if (["listen", "produce", "vocab", "speak", "reading"].includes(m)) bumpMission(m);
+  }
+
+  /* Every scored answer goes through here — record() calls it too — so this is
+   * the one place the missions need to be fed from. */
   function recordStats(ctx, ok) {
     if (!ctx) return;
     bump("prt", ctx.prt, ok);
     bump("form", ctx.form, ok);
     bump("mode", ctx.mode, ok);
+    noteMissionAnswer(ctx, ok);
     save();
   }
 
@@ -655,6 +777,7 @@ const Engine = (() => {
            dialoguesUpTo, dialoguesFor, replyChoices, replyLine,
            kanjiDistractors, learnedKanjiPool, modeFor, buildSession, buildStrengthen, buildKanjiDebut,
            record, recordStats, noteSeen, masteryProgress, streak, stats,
+           missions, missionsDone, noteSession, missionsJustFinished,
            arcPoints, arcUnlocked, hasStamp, stampCount, grandUnlocked, recordExam,
            weakestPoints, statTable, sentencesWith, newKanji, clearNewKanji, today,
            exportSave, importSave,

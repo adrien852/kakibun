@@ -584,6 +584,9 @@ const Session = (() => {
   function answerPanel(target, parsed, onGraded, o) {
     o = o || {};
     const canSpeak = Voice.available() && Engine.state().settings.voiceIn;
+    /* "Oui" is はい and it is also ええ. A production prompt that can't choose
+     * must accept either — see ALT_WORDS in data/lexicon.js. */
+    const alts = parsed ? Parse.altReadings(parsed) : [];
     return {
       html: `<div class="ans-wrap">
         <div class="ans-bar">
@@ -616,8 +619,9 @@ const Session = (() => {
           const v = inp.value.trim();
           if (!v) return;
           done = true;
-          const ok = Kana.same(v, target.r);
-          onGraded({ ok, how: "typed", text: Kana.toKana(v) });
+          let ok = Kana.same(v, target.r), alt = null;
+          if (!ok) for (const a of alts) if (Kana.same(v, a.r)) { ok = true; alt = a; break; }
+          onGraded({ ok, alt, how: "typed", text: Kana.toKana(v) });
         }
         function markUndone() { done = false; }
 
@@ -646,8 +650,12 @@ const Session = (() => {
                 heard.textContent = App.t("speak_heard") + " " + best.text;
                 if (done) return;
                 done = true;
-                curBad = best.g.bad || [];
-                onGraded({ ok: best.g.ok, how: "spoken", text: best.text, grade: best.g });
+                // the same "either word is right" rule, for the spoken answer
+                let ok = best.g.ok, alt = null;
+                if (!ok) for (const a of alts)
+                  if (Voice.match(best.text, a.k, a.r)) { ok = true; alt = a; break; }
+                curBad = alt ? [] : (best.g.bad || []);
+                onGraded({ ok, alt, how: "spoken", text: best.text, grade: best.g });
               },
               (got) => {
                 listening = false; $("a-mic").classList.remove("rec");
@@ -718,8 +726,18 @@ const Session = (() => {
       $("sess-foot").innerHTML = "";
       if (!r.ok) firstTry = false;
       feedback(r.ok && firstTry, parsed, item.gp,
-        r.how === "typed" ? `<div class="fb-expl">${esc(App.t("ans_you_typed"))} ${esc(r.text)}</div>` : "");
+        (r.how === "typed" ? `<div class="fb-expl">${esc(App.t("ans_you_typed"))} ${esc(r.text)}</div>` : "")
+        + altLine(r));
     }
+  }
+
+  /* When a synonym was accepted, say which word the sentence itself uses —
+   * neutrally. They are not always equivalent (the 💡 note explains how they
+   * differ); the point of this line is only that the answer wasn't wrong. */
+  function altLine(r) {
+    if (!r || !r.alt) return "";
+    return `<div class="fb-expl fb-alt">${esc(App.t("alt_ok")
+      .replace("{said}", r.alt.said.r).replace("{want}", r.alt.want.r))}</div>`;
   }
 
   /* ---------- vocabulary: a French word, said or typed in Japanese ---------- */
@@ -855,13 +873,13 @@ const Session = (() => {
     $("a-check").addEventListener("click", api.submitTyped);
     $("rp-skip").addEventListener("click", () => { Voice.cancel(); done(false, ""); });
     setTimeout(() => { if (li > 0) speakLine(dlg.lines[li - 1]); }, 400);
-    function graded(r) { done(r.ok, r.how === "typed" ? r.text : ""); }
-    function done(ok, typed) {
+    function graded(r) { done(r.ok, r.how === "typed" ? r.text : "", r); }
+    function done(ok, typed, r) {
       Voice.cancel();
       $("sess-foot").innerHTML = "";
       if (!ok) firstTry = false;
       feedback(ok && firstTry, parsed, item.gp,
-        (typed ? `<div class="fb-expl">${esc(App.t("ans_you_typed"))} ${esc(typed)}</div>` : "") +
+        (typed ? `<div class="fb-expl">${esc(App.t("ans_you_typed"))} ${esc(typed)}</div>` : "") + altLine(r) +
         `<div class="why"><div class="why-t">💡</div>${esc(dlg.note[lang])}</div>`);
     }
   }
@@ -907,6 +925,10 @@ const Session = (() => {
     }).join("");
     const streak = Engine.streak();
     if (opts.debut) Engine.clearNewKanji();
+    /* the session itself is one of the missions, so it is counted here — before
+     * we ask whether the day's three just landed */
+    Engine.noteSession();
+    const missionsWon = Engine.missionsJustFinished();
     $("sess-body").innerHTML = `<div class="result">
       <div class="res-big">⛩</div>
       <div class="res-score">${esc(App.t("res_title"))}</div>
@@ -914,6 +936,7 @@ const Session = (() => {
       ${bestCombo >= 2 ? `<div class="res-line res-combo">${esc(App.t("res_combo").replace("{n}", bestCombo))}</div>` : ""}
       ${mastered}
       ${streak >= 2 ? `<div class="res-line">🔥 ${esc(App.t("res_streak").replace("{n}", streak))}</div>` : ""}
+      ${missionsWon ? `<div class="res-line res-missions">🎯 ${esc(App.t("missions_done"))}</div>` : ""}
     </div>`;
     foot(`<button class="btn big primary" id="res-done">${esc(App.t("cont"))}</button>`);
     $("res-done").addEventListener("click", close);
