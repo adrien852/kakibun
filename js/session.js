@@ -640,9 +640,16 @@ const Session = (() => {
                 for (const a of alts) {
                   // a single word has no sentence to align against, so grade the
                   // reading directly; a full sentence gets the token-level matcher
+                  // a single word has no sentence to align against, so grade the
+                  // reading directly — against every spelling it could come back
+                  // as, since the recogniser writes kanji the app may not show
+                  // every mode that uses this panel hides the Japanese, so a
+                  // wrong word is a wrong answer rather than a slip of the tongue
                   const g = parsed
-                    ? Voice.grade(a, parsed)
-                    : { ok: Voice.match(a, target.k, target.r), score: 1, bad: [] };
+                    ? Voice.grade(a, parsed, { strict: true })
+                    : { ok: [target.k, target.r].concat(target.sk || [])
+                          .some(w => w && Voice.match(a, w, target.r)),
+                        score: 1, bad: [] };
                   if (!best || (g.ok && !best.g.ok) || (g.ok === best.g.ok && g.score > best.g.score))
                     best = { g, text: a };
                 }
@@ -751,7 +758,8 @@ const Session = (() => {
     curParsed = parsed;
     curCtx = { mode: "vocab" };
     Engine.noteVocab(w.id);
-    const panel = answerPanel({ k: w.k || w.r, r: w.r }, null, graded);
+    const skList = w.sk ? (Array.isArray(w.sk) ? w.sk : [w.sk]) : [];
+    const panel = answerPanel({ k: w.k || w.r, r: w.r, sk: skList }, null, graded);
     $("sess-body").innerHTML = `${kindLine("vocab")}
       <div class="vocab-card">
         <div class="vocab-fr">${esc(w[lang])}</div>

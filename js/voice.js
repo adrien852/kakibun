@@ -93,15 +93,25 @@ const Voice = (() => {
    * and 来ます already agree on ます, and 学校 / 大学 on 学. */
   const TOKEN_OK_RATIO = 0.8;
 
-  /* Expected characters, each tagged with its token index. */
-  function charMap(parsed, useKanji) {
+  /* Expected characters, each tagged with its token index.
+   * `plan` is one surface string per token (Parse.surfacePlans) — the app's own
+   * kanji, its kana, or the orthography a recogniser would use. */
+  function charMap(parsed, plan) {
     const chars = [], owner = [];
     parsed.toks.forEach((t, i) => {
       if (t.type === "punct") return;
-      const surf = strip(useKanji && t.surfK != null ? t.surfK : t.surfR);
+      const surf = strip(plan[i] != null ? plan[i] : t.surfR);
       for (const c of surf) { chars.push(c); owner.push(i); }
     });
     return { chars, owner };
+  }
+
+  /* Every surface worth grading against, joined. Falls back to the two the
+   * parser always has, so a caller passing a bare {surfK,surfR} still works. */
+  function plansFor(parsed) {
+    if (parsed && parsed.toks && typeof Parse.surfacePlans === "function")
+      return Parse.surfacePlans(parsed);
+    return [[parsed && parsed.surfK], [parsed && parsed.surfR]];
   }
 
   /* → { matched: [bool per expected char], score } */
@@ -141,17 +151,22 @@ const Voice = (() => {
   }
 
   /* grade(heard, parsed) → { ok, score, bad:[tokenIdx], exact } */
-  function grade(heard, parsed) {
+  function grade(heard, parsed, opts) {
     const h = strip(heard);
     if (!h) return { ok: false, score: 0, bad: [], exact: false, empty: true };
     // A near-perfect reading passes outright, but we still align it so a single
     // slipped particle gets pointed out rather than silently waved through.
-    const fast = match(heard, parsed.surfK, parsed.surfR);
+    // "near-perfect" means near-perfect against ANY of the spellings the
+    // sentence could legitimately come back as. In strict mode it has to be
+    // exact: match()'s one-character leniency would wave through 明日 for 昨日.
+    const fast = opts && opts.strict
+      ? plansFor(parsed).some(pl => strip(pl.join("")) === h)
+      : plansFor(parsed).some(pl => match(heard, pl.join(""), parsed.surfR));
 
     const hc = [...h];
     let best = null;
-    for (const useKanji of [true, false]) {
-      const { chars, owner } = charMap(parsed, useKanji);
+    for (const plan of plansFor(parsed)) {
+      const { chars, owner } = charMap(parsed, plan);
       const a = align(hc, chars);
       if (!best || a.score > best.a.score) best = { a, owner, chars };
     }
@@ -165,8 +180,20 @@ const Voice = (() => {
       .filter(k => tally[k].hit / tally[k].n < TOKEN_OK_RATIO)
       .map(Number);
     const nTok = Object.keys(tally).length;
-    const ok = fast || best.a.score >= PASS_RATIO ||
-               (bad.length <= 1 && nTok >= MIN_TOKENS_FOR_ONE_SLIP && best.a.score >= 0.5);
+    /* A high overall score used to be enough on its own, and on a short
+     * sentence that is far too generous: 「ははいしゃです」 and
+     * 「山田さんはかいしゃいんです」 share は・い・しゃ・です and scored 0.75,
+     * so saying the wrong sentence entirely came back as correct. Whatever the
+     * score, at most ONE word may have been lost — which is the one-slip
+     * tolerance this grader was always meant to have.
+     *
+     * `strict` (produce, roleplay, vocab) allows none: there the Japanese is
+     * not on screen, so a wrong word is a wrong answer, not a slip of the
+     * tongue. Reading a sentence aloud that you can see stays tolerant. */
+    const slips = opts && opts.strict ? 0 : 1;
+    const ok = fast || (bad.length <= slips &&
+      (best.a.score >= PASS_RATIO ||
+       (nTok >= MIN_TOKENS_FOR_ONE_SLIP && best.a.score >= 0.5)));
     return { ok, score: best.a.score, bad, exact: fast && bad.length === 0, nTok };
   }
 

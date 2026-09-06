@@ -276,6 +276,50 @@ Now `modeFor` returns tiles for any unseen sentence, and a new point introduces 
 sentences and comes back to those same two with the harder questions. Two met properly
 beat four met badly; the rest arrive in later reviews.
 
+## What's in v2.3 — the recogniser doesn't know the curriculum
+
+Say 「きのうははれでした」 perfectly and Android hands back 「昨日は晴れでした」. The app
+stores that sentence kana-only on purpose — 昨 and 晴 lie outside Kakikana's 111 kanji —
+so a flawless answer was being compared against a surface sharing two characters out of
+eight, and marked wrong. The kana-only storage is right for *display*; it was never right
+for *grading*.
+
+**`SPEECH_K` in `data/lexicon.js`** now gives 177 words the spelling a recogniser is
+likely to produce — 昨日, 晴れ, 待つ, 図書館, 美味しい, 大丈夫 — plus digit forms where
+ASR prefers them (100円, 3時, 1週間). It is used **only** by the grader: never displayed,
+never taught, never fed to the kanji exercises. An array covers a word with more than one
+plausible spelling (速い / 早い).
+
+`Parse.surfacePlans()` turns a parsed sentence into every surface it could legitimately
+come back as — the app's own kanji, its kana, and one per speech spelling — with the
+speech form conjugated in step (待つ → 待ちました, not a stray dictionary form). `Voice`
+grades against all of them and keeps the best. The whole corpus and all 219 dialogue lines
+are checked in every one of their spellings, and `release.js` fails if a spelling is
+malformed or drifts from its reading.
+
+The risk here is asymmetric and worth stating: a **missing** entry rejects a correct
+answer, while a **wrong** one simply never matches and leaves the old behaviour. So the
+table errs on the side of being generous — but only where kanji is genuinely what you
+would see. Words Japanese writes in kana anyway (とても, ちょっと, ください, これ,
+たくさん) are deliberately absent, and so are the katakana loanwords.
+
+**And a hole this opened up on the way.** Testing whether the grader had become a rubber
+stamp showed it had been one all along: a high overall score alone was enough to pass, and
+on a short sentence that is far too generous — 「ははいしゃです」 and
+「山田さんはかいしゃいんです」 share は・い・しゃ・です, scored 0.75, and the wrong
+sentence came back correct. 52 of 402 neighbouring sentences were accepted in each other's
+place. Two changes:
+
+- Whatever the score, **at most one word may have been lost** — the one-slip tolerance the
+  grader was always meant to have, now actually enforced.
+- **`strict` mode for produce, roleplay and vocabulary**, where the Japanese is not on
+  screen: no lost words at all, and no one-character leniency on the whole string (which
+  had been waving 明日 through for 昨日). Reading a sentence aloud that you can *see* stays
+  tolerant — there, only pronunciation is being graded.
+
+False accepts in the production modes: **52 → 3 out of 402**, with no correct answer
+rejected in any spelling.
+
 ## Release checklist
 
 Bump `VERSION` in `sw.js` **and** `APP_VERSION` in `js/app.js` together.
@@ -291,4 +335,5 @@ every `<script>` is precached and loaded in a workable order, every cross-module
 are looked up as `t("mission_" + id)`, so the static key scan can't see them), every
 sentence carries a 💡 note that no other sentence under the same grammar point repeats,
 no two sentences share a translation while wanting different Japanese, every `ALT_WORDS`
-entry names real lexicon words, and the word popup's centring isn't wiped by its animation.
+entry names real lexicon words, every speech spelling is well formed and conjugates in
+step with its reading, and the word popup's centring isn't wiped by its animation.

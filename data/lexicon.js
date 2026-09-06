@@ -463,4 +463,80 @@ const ALT_WORDS = [
   ["ikkai", "ichido"]    // une fois — もう一回 and もう一度 are both natural
 ];
 
-if (typeof module !== "undefined") module.exports = { LEXICON, ALT_WORDS };
+
+
+/* ---------- how a speech recogniser would write it ----------
+ * The app deliberately stores a word kana-only when its kanji lie outside
+ * Kakikana's 111 (see the header), and that is right for DISPLAY. But speech
+ * recognition doesn't know about the curriculum: say 「きのうははれでした」 and
+ * Android hands back 「昨日は晴れでした」, in perfectly standard orthography.
+ * Compared against a kana-only expected surface, a flawless answer aligned as
+ * two characters out of eight and was marked wrong.
+ *
+ * So each entry here is the spelling a RECOGNISER is likely to produce, used
+ * only by js/voice.js as an extra surface to grade against — never displayed,
+ * never taught, never fed to the kanji exercises. An array means the word has
+ * more than one plausible spelling (速い / 早い, 一回 / 1回).
+ *
+ * The risk is asymmetric: a missing entry rejects a correct answer, while a
+ * wrong one simply never matches and leaves today's behaviour. So it is better
+ * to be generous here — but only where kanji is genuinely what you would see.
+ * Words Japanese normally writes in kana (とても, ちょっと, ください, ありがとう,
+ * これ, いくら, たくさん …) are deliberately absent, and so are the katakana
+ * loanwords, which the recogniser already spells the way the app does.
+ */
+const SPEECH_K = {
+  /* places & things */
+  kazoku:"家族", minna:"皆", kyouto:"京都", oosaka:"大阪", kissaten:"喫茶店",
+  ginkou:"銀行", byouin:"病院", toshokan:"図書館", kouen:"公園", uchi:"家",
+  heya:"部屋", machi:"町", fujisan:"富士山", umi:"海", niwa:"庭", tokoro:"所",
+  chikaku:"近く", tsukue:"机", isu:"椅子", tokei:"時計", kasa:"傘",
+  shashin:"写真", jitensha:"自転車", hikouki:"飛行機", chikatetsu:"地下鉄",
+  kippu:"切符", eiga:"映画", ongaku:"音楽", uta:"歌", hou:"方",
+  furansugo:"フランス語", eigo:"英語", shigoto:"仕事", shukudai:"宿題",
+  tegami:"手紙", neko:"猫", yuki:"雪", hare:"晴れ", mado:"窓", isha:"医者",
+  kaishain:"会社員", atama:"頭", onaka:"お腹", kusuri:"薬",
+  /* food */
+  gohan:"ご飯", asagohan:"朝ご飯", hirugohan:"昼ご飯", bangohan:"晩ご飯",
+  ocha:"お茶", gyuunyuu:"牛乳", niku:"肉", yasai:"野菜", kudamono:"果物",
+  tamago:"卵", sushi:"寿司", okashi:"お菓子", obentou:"お弁当",
+  /* time */
+  ashita:"明日", kinou:"昨日", maiasa:"毎朝", maiban:"毎晩", asa:"朝",
+  hiru:"昼", ban:"晩", yoru:"夜", shuumatsu:"週末", tanjoubi:"誕生日",
+  natsuyasumi:"夏休み", haru:"春", natsu:"夏", fuyu:"冬",
+  /* verbs */
+  kaeru:"帰る", matsu:"待つ", motsu:"持つ", hataraku:"働く", okiru:"起きる",
+  neru:"寝る", shiru:"知る", sumu:"住む", suwaru:"座る", noru:"乗る",
+  aruku:"歩く", hashiru:"走る", asobu:"遊ぶ", toru:"撮る", akeru:"開ける",
+  shimeru:"閉める", tsukau:"使う", tsukuru:"作る", kasu:"貸す", kariru:"借りる",
+  oshieru:"教える", narau:"習う", utau:"歌う", oyogu:"泳ぐ", owaru:"終わる",
+  hajimaru:"始まる", arau:"洗う", wasureru:"忘れる", isogu:"急ぐ",
+  omou:"思う", tetsudau:"手伝う", benkyou:"勉強", ryouri:"料理",
+  /* adjectives */
+  oishii:"美味しい", atsui:"暑い", samui:"寒い", tsumetai:"冷たい",
+  omoshiroi:"面白い", muzukashii:"難しい", mijikai:"短い",
+  hayai:["速い","早い"], osoi:"遅い", chikai:"近い", tooi:"遠い",
+  isogashii:"忙しい", tanoshii:"楽しい", akai:"赤い", aoi:"青い", hiroi:"広い",
+  semai:"狭い", amai:"甘い", itai:"痛い", hoshii:"欲しい", kawaii:"可愛い",
+  shizuka:"静か", nigiyaka:"賑やか", kirei:"綺麗", yuumei:"有名",
+  shinsetsu:"親切", hima:"暇", benri:"便利", kirai:"嫌い", taihen:"大変",
+  daijoubu:"大丈夫",
+  /* adverbs & question words that are normally kanji */
+  zenzen:"全然", isshoni:"一緒に", zenbu:"全部", ichiban:"一番", dare:"誰",
+  /* the app's okurigana differs from the everyday spelling */
+  kodomo:"子供", tomodachi:"友達",
+  /* recognisers write numbers as digits */
+  hyakuen:"100円", sanbyakuen:"300円", gohyakuen:"500円",
+  senen:"1000円", "ichiman-en":"10000円",
+  ichiji:"1時", niji:"2時", sanji:"3時", yoji:"4時", goji:"5時", rokuji:"6時",
+  shichiji:"7時", hachiji:"8時", kuji:"9時", juuji:"10時",
+  sanjihan:"3時半", shichijihan:"7時半", gofun:"5分", juppun:"10分",
+  ichijikan:"1時間", nijikan:"2時間", isshuukan:"1週間", ichinichi:"1日",
+  hitotsu:"1つ", futatsu:"2つ", mittsu:"3つ", yottsu:"4つ", itsutsu:"5つ",
+  hitori:"1人", futari:"2人", sannin:"3人",
+  ikkai:["1回","一回"], nikai:["2回","二回"], sankai:["3回","三回"],
+  ichido:["1度","一度"]
+};
+for (const id in SPEECH_K) if (LEXICON[id]) LEXICON[id].sk = SPEECH_K[id];
+
+if (typeof module !== "undefined") module.exports = { LEXICON, ALT_WORDS, SPEECH_K };

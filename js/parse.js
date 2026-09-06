@@ -106,6 +106,48 @@ const Parse = (() => {
     return { toks, surfK, surfR };
   }
 
+  /* ---------- surfaces a speech recogniser might produce ----------
+   * Grading a spoken answer means comparing against what the RECOGNISER wrote,
+   * not what the app displays. Those differ: the app keeps a word in kana while
+   * its kanji are still unlearned, and the recogniser has no such scruples —
+   * 「きのうははれでした」 comes back as 「昨日は晴れでした」.
+   *
+   * A "plan" is one string per token, so the caller can still attribute each
+   * character to the word it came from. Plan 0 is the app's kanji surface, plan
+   * 1 its kana reading, and the rest come from `sk` in the lexicon (see there).
+   * Built by ROLE rather than as a cartesian product: a recogniser spells the
+   * whole utterance one way, so the plan that matters is "every word in
+   * recogniser orthography", and a product capped at some limit could easily
+   * drop exactly that combination.
+   */
+  function speechForms(tok) {
+    const sk = tok.lex && tok.lex.sk;
+    if (!sk) return [];
+    const list = Array.isArray(sk) ? sk : [sk];
+    return list.map((variant) => {
+      // conjugate the speech spelling the way the token itself was conjugated,
+      // so 待つ becomes 待ちました rather than staying a dictionary form
+      try { return Conj.conj(Object.assign({}, tok.lex, { k: variant }), tok.form).k; }
+      catch (e) { return null; }
+    });
+  }
+
+  function surfacePlans(parsed) {
+    const base = parsed.toks.map(t => t.surfK != null ? t.surfK : t.surfR);
+    const kana = parsed.toks.map(t => t.surfR);
+    const plans = [base];
+    if (kana.join("") !== base.join("")) plans.push(kana);
+
+    const forms = parsed.toks.map(speechForms);
+    const depth = forms.reduce((n, f) => Math.max(n, f.length), 0);
+    for (let v = 0; v < depth; v++) {
+      const plan = parsed.toks.map((t, i) => forms[i][v] || base[i]);
+      const key = plan.join("");
+      if (!plans.some(p => p.join("") === key)) plans.push(plan);
+    }
+    return plans;
+  }
+
   /* Equally-correct alternative surfaces for a sentence: the same sentence with
    * one token swapped for a word the prompt could not have chosen between (see
    * ALT_WORDS in data/lexicon.js). One swap at a time — a prompt is only ever
@@ -138,6 +180,7 @@ const Parse = (() => {
   }
 
   return { sentence, parseToken, align, kanjiBreakdown, readingType, fold, isKanji, readEq,
+           surfacePlans,
            altReadings };
 })();
 if (typeof module !== "undefined") module.exports = { Parse };

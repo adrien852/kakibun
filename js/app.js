@@ -1,5 +1,5 @@
 /* Kakibun — app shell: nav, home, i18n, boot. */
-const APP_VERSION = "2.2.0"; // keep in sync with sw.js VERSION
+const APP_VERSION = "2.3.0"; // keep in sync with sw.js VERSION
 const App = (() => {
   const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
   const $ = (id) => document.getElementById(id);
