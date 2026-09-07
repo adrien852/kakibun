@@ -82,43 +82,43 @@ const Exam = (() => {
 
     const missRows = results.filter(r => !r.ok).map(r => {
       const g = GRAMMAR.find(x => x.id === r.gp);
-      return `<div class="due-row" data-gp="${g.id}"><div class="due-jp">${esc(g.pat)}</div>
-        <div class="due-name">${esc(g.name[lang])}</div><div>›</div></div>`;
+      return `<div class="res-row" data-gp="${g.id}"><span>${esc(g.pat)}</span>
+        <b style="font-weight:400;color:rgba(255,255,255,.7)">${esc(g.name[lang])}</b></div>`;
     }).join("");
 
     const solidRows = outcome.solidified.map(gp => {
       const g = GRAMMAR.find(x => x.id === gp);
-      return `<div class="res-line">🎖 ${esc(g.pat)} — ${esc(App.t("res_solid"))}</div>`;
+      return `<div class="res-row"><span>🎖 ${esc(g.pat)}</span><b>${esc(App.t("res_solid"))}</b></div>`;
     }).join("");
 
-    $("sess-body").innerHTML = `<div class="result">
-      ${outcome.passed ? stampHtml(arcId, true, "big") : `<div class="res-big">🎫</div>`}
-      <div class="res-score">${esc(outcome.passed ? App.t("exam_pass") : App.t("exam_fail"))}</div>
-      <div class="res-line">${esc(App.t("res_score").replace("{a}", outcome.score).replace("{b}", outcome.total))} · ${pct} %</div>
-      ${outcome.passed
-        ? `<div class="res-line res-combo">${esc(App.t("exam_stamp"))}</div>`
-        : `<div class="res-line">${esc(App.t("exam_need").replace("{n}", Math.round(Engine.EXAM_PASS * 100)))}</div>`}
-      ${solidRows}
-      ${outcome.demoted.length ? `<div class="res-line">${esc(App.t("exam_demoted").replace("{n}", outcome.demoted.length))}</div>` : ""}
-      ${results.every(r => r.ok) ? `<div class="res-line res-combo">${esc(App.t("exam_perfect"))}</div>` : ""}
-    </div>
-    ${missRows ? `<div class="card"><div class="card-title">${esc(App.t("exam_misses"))}</div>
-      <div class="due-list" id="ex-misses">${missRows}</div></div>` : ""}`;
-
-    const box = $("ex-misses");
-    if (box) box.querySelectorAll(".due-row").forEach(el =>
-      el.addEventListener("click", () => Session.practice(el.dataset.gp)));
-
-    $("sess-foot").innerHTML = `<div class="sess-foot-in">
-      <button class="btn big primary" id="ex-done">${esc(App.t("cont"))}</button></div>`;
+    document.getElementById("sess-kind").textContent =
+      App.t(outcome.passed ? "exam_pass" : "exam_fail");
+    $("sess-body").innerHTML = `
+      <div class="res-score">${outcome.score}<small>/${outcome.total}</small></div>
+      <div class="res-line">${esc(outcome.passed ? App.t("exam_stamp") : App.t("exam_need")
+        .replace("{n}", Math.round(Engine.EXAM_PASS * 100)))}</div>
+      <div class="res-card">
+        <div class="res-row"><span>${esc(App.t("exam_arc").replace("{a}", arcLabel(arcId)))}</span
+          ><b class="accent">${pct} %</b></div>
+        ${outcome.passed ? `<div class="res-row"><span>駅スタンプ</span
+          ><b class="accent">${esc(arcId === "grand" ? "🎌" : (ARCS.find(a => a.id === arcId) || {}).jp || "")}</b></div>` : ""}
+        ${solidRows}
+        ${outcome.demoted.length ? `<div class="res-row"><span>${esc(App.t("exam_demoted")
+          .replace("{n}", outcome.demoted.length))}</span><b>↺</b></div>` : ""}
+        ${results.every(r => r.ok) ? `<div class="res-row"><span>${esc(App.t("exam_perfect"))}</span
+          ><b class="accent">✓</b></div>` : ""}
+      </div>
+      ${missRows ? `<div class="res-card"><div class="eyebrow">${esc(App.t("exam_misses"))}</div>
+        <div id="ex-misses">${missRows}</div></div>` : ""}`;
+    $("sess-foot").innerHTML =
+      `<button class="btn-primary finish" id="ex-done">${esc(App.t("res_back"))}</button>`;
     $("ex-done").addEventListener("click", () => Session.close());
   }
 
   /* ---------- the stamp ---------- */
   function stampHtml(arcId, earned, size) {
     const jp = arcId === "grand" ? "完" : arcOf(arcId).jp;
-    return `<div class="stamp ${earned ? "on" : "off"} ${size === "big" ? "stamp-big" : ""}">
-      <div class="stamp-in"><span>${esc(jp)}</span></div></div>`;
+    return `<span class="stamp ${earned ? "got" : ""}">${esc(jp.length > 2 ? jp.slice(0, 2) : jp)}</span>`;
   }
 
   /* Card shown on the map at the end of each arc. */

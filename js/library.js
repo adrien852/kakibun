@@ -1,247 +1,264 @@
-/* Kakibun — library: grammar points, unlocked sentences, kanji panel. */
+/* Kakibun — 帳面 le carnet.
+ *
+ * Five tabs over one row component. Everything here is browsing, never
+ * scoring: tapping 🔊 speaks, tapping a row opens what it is, and nothing
+ * touches the review schedule.
+ *
+ * Kanji is the one tab with an opinion: characters Kakikana has taught are at
+ * full strength and the rest sit at 34 %, so the boundary of what you actually
+ * know stays visible instead of being hidden.
+ */
 const Library = (() => {
   const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
-  let tab = "grammar";
+  const $ = (id) => document.getElementById(id);
 
-  const dispOpts = () => ({
-    showAll: Engine.state().settings.showAllKanji || !Bridge.hasInfo(),
-    furi: Engine.state().settings.furi
-  });
+  const TABS = ["grammaire", "phrases", "kanji", "dialogues", "mots"];
+  let tab = "grammaire";
+  let openGp = null, openDlg = null, openKanji = null;
 
-  /* Every drill-down replaces the whole panel, so the viewport has to go back
-   * to the top or you land mid-way down the new screen. */
-  const toTop = () => window.scrollTo({ top: 0, behavior: "auto" });
-
-  /* One sentence row: tap words for the popup, 🔊 to hear it, 🎤 to read it aloud.
-   * The mic is FREE practice — it never touches SRS scheduling. */
-  function sentRow(s, gpId) {
-    const lang = App.lang();
-    const parsed = Parse.sentence(s.dsl);
-    const row = document.createElement("div");
-    row.className = "lib-row";
-    const main = document.createElement("div");
-    main.className = "lr-main";
-    main.appendChild(jp(parsed, gpId));
-    const tr = document.createElement("div");
-    tr.className = "lr-sub";
-    tr.textContent = s[lang];
-    main.appendChild(tr);
-    const btns = document.createElement("div");
-    btns.className = "lr-btns";
-    const play = document.createElement("button");
-    play.className = "audio-sm";
-    play.textContent = "\u{1F50A}";
-    play.title = App.t("replay");
-    play.addEventListener("click", () => Voice.speak(parsed.surfK + "\u3002", 0.85));
-    const mic = document.createElement("button");
-    mic.className = "audio-sm mic";
-    mic.textContent = "\u{1F3A4}";
-    mic.title = App.t("lib_speak");
-    mic.addEventListener("click", () => Session.readAloud(s.i, gpId));
-    btns.appendChild(play); btns.appendChild(mic);
-    row.appendChild(main); row.appendChild(btns);
-    return row;
-  }
-
-  function jp(parsed, gpId) {
-    const div = document.createElement("div");
-    div.className = "lib-sent jp";
-    const last = parsed.toks.length - 1;
-    div.innerHTML = parsed.toks.map((t, i) => {
-      // the final 。 rides along inside the last word: on these narrow rows it
-      // would otherwise wrap onto a line of its own
-      const tail = i === last ? "。" : "";
-      if (t.type === "punct") return `<span class="tok">${esc(t.surfR)}${tail}</span>`;
-      const segs = Bridge.display(t, dispOpts());
-      const inner = segs.map(s => s.rt !== undefined ? `<ruby>${esc(s.t)}<rt>${esc(s.rt)}</rt></ruby>` : esc(s.t)).join("");
-      return `<span class="tok tap${t.type === "p" ? " prt" : ""}" data-i="${i}">${inner}${tail}</span>`;
-    }).join("");
-    div.querySelectorAll(".tok.tap").forEach(el =>
-      el.addEventListener("click", () => WordPop.show(parsed.toks[+el.dataset.i], gpId)));
-    return div;
-  }
+  const dispOpts = () => {
+    const s = Engine.state().settings;
+    return { showAll: s.showAllKanji || !Bridge.hasInfo(), furi: s.furi };
+  };
+  const segHtml = (tok, d) => Bridge.display(tok, d).map(x => x.rt !== undefined
+    ? `<ruby>${esc(x.t)}<rt>${esc(x.rt)}</rt></ruby>` : esc(x.t)).join("");
+  /* Tokens stay tappable here exactly as they are in a session — the per-kanji
+   * 音/訓 breakdown is half of what the library is for. */
+  const jpHtml = (parsed) => {
+    const d = dispOpts();
+    return parsed.toks.map((t, i) => t.type === "punct"
+      ? `<span class="tok">${esc(t.surfR)}</span>`
+      : `<span class="tok tap${t.type === "p" ? " prt" : ""}" data-i="${i}">${segHtml(t, d)}</span>`
+    ).join("") + `<span class="tok">。</span>`;
+  };
+  const speak = (text) => { Voice.speak(text); Sfx.voice(); };
 
   function render() {
-    const body = document.getElementById("lib-body");
+    $("lib-tabs").innerHTML = TABS.map(id =>
+      `<button class="lib-tab ${tab === id ? "on" : ""}" data-tab="${id}"
+        >${esc(App.t("lib_tab_" + id))}</button>`).join("");
+    $("lib-tabs").querySelectorAll(".lib-tab").forEach(el =>
+      el.addEventListener("click", () => {
+        tab = el.dataset.tab; openGp = openDlg = openKanji = null; Sfx.tap(); render();
+      }));
+
     const lang = App.lang();
-    let html = `<div class="lib-tabs">
-      <button class="lib-tab ${tab === "grammar" ? "on" : ""}" data-t="grammar">${esc(App.t("lib_grammar"))}</button>
-      <button class="lib-tab ${tab === "sent" ? "on" : ""}" data-t="sent">${esc(App.t("lib_sent"))}</button>
-      <button class="lib-tab ${tab === "dlg" ? "on" : ""}" data-t="dlg">${esc(App.t("lib_dlg"))}</button>
-      <button class="lib-tab ${tab === "kanji" ? "on" : ""}" data-t="kanji">${esc(App.t("lib_kanji"))}</button>
-    </div><div id="lib-content"></div>`;
-    body.innerHTML = html;
-    body.querySelectorAll(".lib-tab").forEach(b => b.addEventListener("click", () => { tab = b.dataset.t; render(); }));
-    toTop();
-    const c = document.getElementById("lib-content");
-    if (tab === "grammar") renderGrammar(c, lang);
-    else if (tab === "sent") renderSentences(c, lang);
-    else if (tab === "dlg") renderDialogues(c, lang);
-    else renderKanji(c, lang);
+    const body = $("lib-body");
+    if (openDlg !== null) body.innerHTML = dialogueDetail(openDlg, lang);
+    else if (openKanji) body.innerHTML = kanjiDetail(openKanji, lang);
+    else if (openGp) body.innerHTML = grammarDetail(openGp, lang);
+    else if (tab === "grammaire") body.innerHTML = grammarList(lang);
+    else if (tab === "phrases") body.innerHTML = sentenceList(lang);
+    else if (tab === "kanji") body.innerHTML = kanjiGrid();
+    else if (tab === "dialogues") body.innerHTML = dialogueList(lang);
+    else body.innerHTML = wordList(lang);
+    bind();
+    $("library").scrollTop = 0;
   }
 
-  function renderGrammar(c, lang) {
-    const cur = Engine.currentIndex();
-    let html = "";
-    let gi = 0;
-    for (const arc of ARCS) {
-      const points = GRAMMAR.filter(g => g.arc === arc.id);
-      html += `<div class="arc-head"><span class="arc-jp">${esc(arc.jp)}</span><span class="arc-name">${esc(arc.name[lang])}</span></div>`;
-      for (const g of points) {
-        const i = gi++;
-        const locked = i > cur;
-        const p = Engine.point(g.id);
-        html += `<div class="lib-row" ${locked ? 'style="opacity:.45"' : `data-gp="${g.id}"`}>
-          <div class="lr-main"><div class="lr-jp">${esc(g.pat)}</div>
-          <div class="lr-sub">${esc(g.name[lang])}</div></div>
-          <div>${p.mastered ? "🏅" : locked ? "🔒" : i === cur ? "📍" : ""}</div></div>`;
-      }
-    }
-    c.innerHTML = html;
-    c.querySelectorAll(".lib-row[data-gp]").forEach(el =>
-      el.addEventListener("click", () => detail(el.dataset.gp)));
-  }
+  /* ---------- one row component, five payloads ---------- */
+  /* `mic` carries a sentence index: reading one aloud here is free practice and
+   * must never move that grammar point's review schedule. */
+  const row = (jp, fr, tag, attrs, say, mic) =>
+    `<div class="lib-row" ${attrs || ""}>
+      <span class="lib-main">
+        <span class="lib-jp">${jp}</span>
+        <span class="lib-fr">${esc(fr)}</span>
+      </span>
+      ${tag ? `<span class="lib-tag">${esc(tag)}</span>` : ""}
+      ${say ? `<button class="say-btn" data-say="${esc(say)}">🔊</button>` : ""}
+      ${mic != null ? `<button class="say-btn mic" data-read="${mic}">🎤</button>` : ""}
+    </div>`;
 
-  function detail(gpId) {
-    toTop();
-    const lang = App.lang();
+  const arcOf = (gpId) => {
     const g = GRAMMAR.find(x => x.id === gpId);
-    const c = document.getElementById("lib-content");
-    let html = `<div class="lesson"><div class="les-pat">${esc(g.pat)}</div>
-      <div class="les-name">${esc(g.name[lang])}</div>
-      <div class="les-expl">${esc(g.expl[lang])}</div></div>
-      <button class="btn primary" id="lib-practice" style="width:100%;margin-bottom:14px">⛩ ${esc(App.t("hero_review"))}</button>
-      <div id="lib-sents"></div>
-      <button class="btn ghost" id="lib-back" style="width:100%;margin-top:8px">←</button>`;
-    c.innerHTML = html;
-    const sents = document.getElementById("lib-sents");
-    for (const s of Engine.sentencesFor(gpId)) sents.appendChild(sentRow(s, gpId));
-    document.getElementById("lib-practice").addEventListener("click", () => Session.practice(gpId));
-    document.getElementById("lib-back").addEventListener("click", render);
-  }
+    const a = g && ARCS.find(x => x.id === g.arc);
+    return a ? a.jp : "";
+  };
 
-  function renderSentences(c, lang) {
+  function grammarList(lang) {
     const cur = Engine.currentIndex();
-    const unlocked = SENTENCES.filter(s => GRAMMAR.findIndex(g => g.id === s.gp) < cur);
-    if (!unlocked.length) { c.innerHTML = `<div class="lr-sub" style="padding:20px;text-align:center">${esc(App.t("lib_no_sent"))}</div>`; return; }
-    c.innerHTML = `<div class="lr-sub" style="margin-bottom:10px">${esc(App.t("lib_sent_count").replace("{n}", unlocked.length))}</div>`;
-    for (const s of unlocked.slice().reverse()) c.appendChild(sentRow(s, s.gp));
+    const rows = GRAMMAR.slice(0, cur).reverse().map(g => {
+      const p = Engine.point(g.id);
+      const tag = p.tier === 2 ? "🎖" : p.tier === 1 ? "🏅" : App.t("state_current");
+      return row(esc(g.pat), `${g.name[lang]} · ${arcOf(g.id)}`, tag, `data-gp="${g.id}"`);
+    }).join("");
+    return rows || empty(App.t("lib_no_sent"));
   }
 
-  function renderKanji(c, lang) {
+  function grammarDetail(gpId, lang) {
+    const g = GRAMMAR.find(x => x.id === gpId);
+    const sents = Engine.sentencesFor(gpId);
+    const rows = sents.map(s => {
+      const p = Parse.sentence(s.dsl);
+      return row(jpHtml(p), s[lang], "N°" + s.i,
+                 `data-dsl="${esc(s.dsl)}" data-jgp="${esc(gpId)}"`, p.surfK + "。", s.i);
+    }).join("");
+    return `<button class="city-back" style="align-self:flex-start">← ${esc(App.t("lib_tab_grammaire"))}</button>
+      <section class="card" style="margin-top:10px">
+        <div class="eyebrow">${esc(arcOf(gpId))}</div>
+        <div class="sess-pat">${esc(g.pat)}</div>
+        <div class="sess-sub">${esc(g.name[lang])}</div>
+        <div class="stamp-note" style="margin-top:10px">${esc(g.expl[lang])}</div>
+      </section>${rows}`;
+  }
+
+  function sentenceList(lang) {
+    const cur = Engine.currentIndex();
+    const rows = SENTENCES.filter(s => GRAMMAR.findIndex(g => g.id === s.gp) < cur)
+      .slice().reverse().map(s => {
+        const p = Parse.sentence(s.dsl);
+        return row(jpHtml(p), s[lang], "N°" + s.i,
+                   `data-dsl="${esc(s.dsl)}" data-jgp="${esc(s.gp)}"`, p.surfK + "。", s.i);
+      }).join("");
+    return rows || empty(App.t("lib_no_sent"));
+  }
+
+  function kanjiGrid() {
+    const showAll = Engine.state().settings.showAllKanji || !Bridge.hasInfo();
     const chars = Object.keys(KANJI_INFO);
-    const learned = chars.filter(ch => Bridge.isLearned(ch));
-    let html = Bridge.hasInfo()
-      ? `<div class="lr-sub" style="margin-bottom:10px">${esc(App.t("lib_kanji_learned").replace("{n}", learned.length))}</div>`
-      : `<div class="lr-sub" style="margin-bottom:10px">${esc(App.t("set_kakikana_none"))}</div>`;
-    html += `<div class="kj-grid">` + chars.map(ch => {
-      const on = Bridge.isLearned(ch) || Engine.state().settings.showAllKanji || !Bridge.hasInfo();
-      return `<div class="kj-cell ${on ? "" : "off"}" data-ch="${esc(ch)}">${esc(ch)}<span class="kj-r">${esc(KANJI_INFO[ch][lang].split(/[;,；]/)[0])}</span></div>`;
-    }).join("") + `</div>`;
-    c.innerHTML = html;
-    c.querySelectorAll(".kj-cell").forEach(el =>
-      el.addEventListener("click", () => kanjiDetail(el.dataset.ch)));
+    const cells = chars.map(ch => {
+      const info = KANJI_INFO[ch];
+      const known = showAll || Bridge.isLearned(ch);
+      const read = (info.kun[0] && info.kun[0][0]) || (info.on[0] && info.on[0][0]) || "";
+      return `<div class="kanji-cell ${known ? "" : "unknown"}" data-kanji="${esc(ch)}">
+        <span class="ch">${esc(ch)}</span><span class="rd">${esc(read)}</span></div>`;
+    }).join("");
+    return `<div class="kanji-grid">${cells}</div>`;
   }
 
-  /* One kanji: readings ranked by how common they are, then every unlocked
-   * sentence where you actually meet it. */
-  function kanjiDetail(ch) {
-    toTop();
-    const lang = App.lang();
-    const meta = KANJI_INFO[ch];
-    const c = document.getElementById("lib-content");
-    const rows = [["on", meta.on], ["kun", meta.kun]].map(([type, list]) =>
-      list.map(e => {
-        const fTag = e[1] === 2 ? `<span class="wp-tag freq1">★ ${esc(App.t("wp_main"))}</span>`
-          : e[1] === 1 ? `<span class="wp-tag freqr">${esc(App.t("wp_common"))}</span>`
-          : `<span class="wp-tag freqr">${esc(App.t("wp_rare"))}</span>`;
-        const note = e[2] ? `<div class="wp-note">${esc(lang === "fr" ? e[2] : e[3])}</div>` : "";
-        return `<div class="wp-krow"><div class="wp-kch"><span class="wp-tag ${type}">${type === "on" ? "音" : "訓"}</span></div>
-          <div class="wp-kmain"><b>${esc(e[0])}</b>${fTag}${note}</div></div>`;
-      }).join("")).join("");
+  /* The kanji lens: what the character means, how it is read here and there,
+   * and — the part that makes it a lens rather than a dictionary — every
+   * sentence in the journey where you actually meet it. */
+  function kanjiDetail(ch, lang) {
+    const info = KANJI_INFO[ch];
+    if (!info) return empty(App.t("lib_no_sent"));
+    const freq = (f) => f === 2 ? `<span class="lib-tag">★ ${esc(App.t("wp_main"))}</span>`
+                     : f === 1 ? `<span class="lib-tag">${esc(App.t("wp_common"))}</span>`
+                     : `<span class="lib-tag">${esc(App.t("wp_rare"))}</span>`;
+    const list = (arr, label) => !arr.length ? "" : `<section class="card" style="margin-top:8px">
+      <div class="eyebrow">${esc(label)}</div>
+      ${arr.map(e => `<div class="kj-read-row">
+        <div class="mis-top"><span class="lib-jp">${esc(e[0])}</span>${freq(e[1])}</div>
+        ${e[2] ? `<div class="lib-fr">${esc(lang === "en" ? e[3] : e[2])}</div>` : ""}
+      </div>`).join("")}</section>`;
     const sents = Engine.sentencesWith([ch], true);
-    c.innerHTML = `<div class="kj-detail">
-        <div class="kj-big">${esc(ch)}</div>
-        <div class="kj-mean">${esc(meta[lang])}</div>
-        <div class="wp-kanji" style="border:none">${rows}</div>
-      </div>
-      <div class="card-title" style="margin-top:6px">${esc(App.t("kj_in_sent"))} · ${esc(App.t("kj_sentences").replace("{n}", sents.length))}</div>
-      <div id="kj-sents"></div>
-      <button class="btn ghost" id="kj-back" style="width:100%;margin-top:8px">← ${esc(App.t("back"))}</button>`;
-    const box = document.getElementById("kj-sents");
-    if (!sents.length) {
-      box.innerHTML = `<div class="lr-sub" style="padding:10px 2px">${esc(App.t("kj_none_yet"))}</div>`;
-    } else {
-      for (const s of sents.slice(0, 40)) box.appendChild(sentRow(s, s.gp));
-    }
-    document.getElementById("kj-back").addEventListener("click", render);
+    const rows = sents.map(s => {
+      const p = Parse.sentence(s.dsl);
+      return row(jpHtml(p), s[lang], "N°" + s.i,
+                 `data-dsl="${esc(s.dsl)}" data-jgp="${esc(s.gp)}"`, p.surfK + "。", s.i);
+    }).join("");
+    return `<button class="city-back" style="align-self:flex-start">← ${esc(App.t("lib_tab_kanji"))}</button>
+      <section class="card" style="margin-top:10px">
+        <div class="city-name"><span class="jp" style="font-size:44px">${esc(ch)}</span>
+          <span class="fr">${esc(info[lang])}</span></div>
+      </section>
+      ${list(info.on, "音 " + App.t("wp_on"))}${list(info.kun, "訓 " + App.t("wp_kun"))}
+      <div class="eyebrow" style="margin:14px 0 4px">${esc(App.t("lib_kanji_sents")
+        .replace("{n}", sents.length))}</div>
+      ${rows || empty(App.t("lib_no_sent"))}`;
   }
 
-  /* ---------- dialogues ---------- */
-  function renderDialogues(c, lang) {
-    const list = Engine.dialoguesUpTo();
-    if (!list.length) { c.innerHTML = `<div class="lr-sub" style="padding:20px;text-align:center">${esc(App.t("lib_no_dlg"))}</div>`; return; }
-    c.innerHTML = `<div class="lr-sub" style="margin-bottom:10px">${
-      esc(App.t("lib_dlg_count").replace("{n}", list.length))}</div>`;
-    // grouped by city, because that is what the settings are organised around
-    for (const arc of ARCS) {
-      const here = list.filter(d => {
-        const g = GRAMMAR.find(x => x.id === d.gp);
-        return g && g.arc === arc.id;
-      });
-      if (!here.length) continue;
-      const h = document.createElement("div");
-      h.className = "arc-head";
-      h.innerHTML = `<span class="arc-jp">${esc(arc.jp)}</span>
-        <span class="arc-name">${esc(arc.city[lang])}</span>`;
-      c.appendChild(h);
-      for (const d of here) {
-        const b = document.createElement("button");
-        b.className = "lib-dlg-row";
-        b.innerHTML = `<div class="ld-where">${esc(d.where[lang])}</div>
-          <div class="ld-sub">${d.lines.length} ${esc(App.t("lib_dlg_lines"))}</div>`;
-        b.addEventListener("click", () => openDialogue(d, lang));
-        c.appendChild(b);
+  function dialogueList(lang) {
+    const ds = Engine.dialoguesUpTo();
+    if (!ds.length) return empty(App.t("lib_no_dlg"));
+    return ds.slice().reverse().map(d => {
+      const a = Parse.sentence(d.lines[0].dsl);
+      const b = d.lines[1] ? Parse.sentence(d.lines[1].dsl) : null;
+      const g = GRAMMAR.find(x => x.id === d.gp);
+      return `<button class="dlg-card" data-dlg="${d.i}">
+        <span class="dlg-top">
+          <span class="dlg-where">${esc(d.where[lang])}</span>
+          <span class="dlg-city">${esc(arcOf(d.gp))}</span>
+        </span>
+        <div class="dlg-a">${jpHtml(a)}</div>
+        ${b ? `<div class="dlg-b">${jpHtml(b)}</div>` : ""}
+        <div class="dlg-note">💡 ${esc(d.note[lang])}</div>
+      </button>`;
+    }).join("");
+  }
+
+  function dialogueDetail(i, lang) {
+    const d = DIALOGUES[i];
+    const lines = d.lines.map(l => {
+      const p = Parse.sentence(l.dsl);
+      return `<div class="tr-line ${l.sp === "B" ? "out" : ""}">
+        <div class="tr-jp" data-dsl="${esc(l.dsl)}" data-jgp="${esc(d.gp)}">${jpHtml(p)}</div>
+        <div class="tr-fr">${esc(l[lang])}</div></div>`;
+    }).join("");
+    const all = d.lines.map(l => Parse.sentence(l.dsl).surfK + "。").join(" ");
+    return `<button class="city-back" style="align-self:flex-start">← ${esc(App.t("lib_tab_dialogues"))}</button>
+      <section class="card" style="margin-top:10px">
+        <div class="eyebrow">${esc(arcOf(d.gp))}</div>
+        <div class="dlg-where" style="margin-top:6px">${esc(d.where[lang])}</div>
+      </section>
+      <div class="transcript" style="margin-top:10px">${lines}</div>
+      <section class="card" style="margin-top:10px">
+        <div class="dlg-note">💡 ${esc(d.note[lang])}</div>
+      </section>
+      <button class="btn-primary sm" data-say="${esc(all)}" style="margin-top:10px"
+        >🔊 ${esc(App.t("dlg_play"))}</button>`;
+  }
+
+  /* the vocabulary tab: every word the journey has actually taught */
+  function wordList(lang) {
+    const cur = Engine.currentIndex();
+    const first = {};                       // lexicon id → the arc that taught it
+    for (const s of SENTENCES) {
+      const gi = GRAMMAR.findIndex(g => g.id === s.gp);
+      if (gi >= cur) continue;
+      for (const tok of Parse.sentence(s.dsl).toks) {
+        const id = tok.lex && tok.lex.id;
+        if (id && first[id] === undefined) first[id] = s.gp;
       }
     }
+    const ids = Object.keys(first);
+    if (!ids.length) return empty(App.t("lib_no_sent"));
+    return ids.map(id => {
+      const w = LEXICON[id];
+      const pos = App.t("pos_" + w.pos);
+      const head = w.k ? `${esc(w.k)} <span style="opacity:.6">(${esc(w.r)})</span>` : esc(w.r);
+      return row(head, `${w[lang]}${pos === "pos_" + w.pos ? "" : " · " + pos}`,
+                 arcOf(first[id]), "", w.r);
+    }).join("");
   }
 
-  function openDialogue(d, lang) {
-    const c = document.getElementById("lib-content");
-    c.innerHTML = `<button class="btn small" id="dlg-back">‹ ${esc(App.t("back"))}</button>
-      <div class="dlg-where" style="margin-top:14px">${esc(d.where[lang])}</div>
-      <div class="dlg-lines" id="dlg-lines"></div>
-      <div class="why"><div class="why-t">💡</div>${esc(d.note[lang])}</div>
-      <button class="btn big" id="dlg-play">🔊 ${esc(App.t("dlg_play"))}</button>`;
-    toTop();
-    const box = document.getElementById("dlg-lines");
-    d.lines.forEach((l) => {
-      const parsed = Parse.sentence(l.dsl);
-      const row = document.createElement("div");
-      row.className = "dlg-line " + (l.sp === "A" ? "a" : "b");
-      const who = document.createElement("div");
-      who.className = "dlg-who"; who.textContent = l.sp;
-      const bub = document.createElement("div");
-      bub.className = "dlg-bubble";
-      bub.appendChild(jp(parsed, d.gp));
-      const tr = document.createElement("div");
-      tr.className = "dlg-fr"; tr.textContent = l[lang];
-      bub.appendChild(tr);
-      row.appendChild(who); row.appendChild(bub);
-      box.appendChild(row);
-    });
-    document.getElementById("dlg-back").addEventListener("click", () => render());
-    document.getElementById("dlg-play").addEventListener("click", () => {
-      // read the whole exchange through, one line at a time
-      let n = 0;
-      const step = () => {
-        if (n >= d.lines.length) return;
-        Voice.speak(Parse.sentence(d.lines[n++].dsl).surfK + "。");
-        setTimeout(step, 2000);
-      };
-      step();
+  const empty = (msg) => `<section class="card"><div class="empty-note">${esc(msg)}</div></section>`;
+
+  /* re-parse from the row's own dsl so a tap knows which token it hit */
+  function bindTaps(root, parsed, gpId) {
+    root.querySelectorAll(".tok.tap").forEach(el =>
+      el.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const t = parsed.toks[+el.dataset.i];
+        if (t) WordPop.show(t, gpId);
+      }));
+  }
+
+  function bind() {
+    const body = $("lib-body");
+    body.querySelectorAll("[data-dsl]").forEach(el =>
+      bindTaps(el, Parse.sentence(el.dataset.dsl), el.dataset.jgp || null));
+    body.querySelectorAll("[data-say]").forEach(el =>
+      el.addEventListener("click", (e) => { e.stopPropagation(); speak(el.dataset.say); }));
+    body.querySelectorAll("[data-read]").forEach(el =>
+      el.addEventListener("click", (e) => {
+        e.stopPropagation();
+        Session.readAloud(+el.dataset.read, SENTENCES[+el.dataset.read].gp);
+      }));
+    body.querySelectorAll("[data-gp]").forEach(el =>
+      el.addEventListener("click", () => { openGp = el.dataset.gp; Sfx.tap(); render(); }));
+    body.querySelectorAll("[data-dlg]").forEach(el =>
+      el.addEventListener("click", () => { openDlg = +el.dataset.dlg; Sfx.tap(); render(); }));
+    body.querySelectorAll("[data-kanji]").forEach(el =>
+      el.addEventListener("click", () => { openKanji = el.dataset.kanji; Sfx.tap(); render(); }));
+    const back = body.querySelector(".city-back");
+    if (back) back.addEventListener("click", () => {
+      openGp = openDlg = openKanji = null; Sfx.tap(); render();
     });
   }
 
-  return { render };
+  const toTop = () => { const s = $("library"); if (s) s.scrollTop = 0; };
+
+  return { render, toTop };
 })();

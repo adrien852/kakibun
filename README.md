@@ -1,9 +1,11 @@
 # Kakibun ⛩
 
 Sequel to KakiKana: Japanese N5 **sentences and grammar** as a journey across Japan —
-100 grammar points in 10 arcs (Tokyo → Hokkaido), 500+ authored sentences, four exercise
-modes (listen → assemble tiles, particle cloze, transform drills, read aloud), particle
-and kanji-in-context explanations, SRS reviews, streaks, combos and mastery ranks.
+100 grammar points in 10 cities (Tokyo → Hokkaido), 502 authored sentences each with its
+own 💡 note, 50 dialogues, fourteen exercise modes, SRS reviews, section exams with their
+駅スタンプ, daily missions, and a landscape that follows the real season and the real hour.
+
+No build step, no framework, no network requests: the files are the sources.
 
 ## Install on your phone (GitHub Pages)
 
@@ -320,6 +322,63 @@ place. Two changes:
 False accepts in the production modes: **52 → 3 out of 402**, with no correct answer
 rejected in any spelling.
 
+## What's in v3.0 — 紅葉狩り, the seasonal redesign
+
+A complete visual and interaction redesign, built to Claude Design's handoff. One idea
+carries it:
+
+> **The app is a place you are standing in, and that place follows the real season and
+> the real hour.**
+
+Every screen sits on one continuous landscape — three receding ridges under a sky derived
+from the current month and hour — and the UI floats above it as dark translucent glass.
+The landscape is rendered once and never re-rendered on navigation, so moving between
+screens feels like turning around in one place rather than loading a page.
+
+**Sixteen skies.** 4 seasons × 4 hour bands (dawn 05–07 · day 08–15 · dusk 16–18 · night
+19–04), each a hand-picked gradient, with a light source that reads as a sun by day and a
+moon at night. The season also supplies the accent colour, the hill palette, the ground
+vignette, the headline ink and the sound. `js/season.js` derives all of it from
+`(month, hour)` and writes a handful of custom properties; nothing else in the app knows
+what month it is. There is no override and no simulated clock — the handoff's preview
+harness is deliberately not shipped.
+
+**Particles per season**: sakura petals falling, summer specks rising past a wind-chime,
+maple leaves tumbling, slow snow. Seeded off the season so the same weather falls the same
+way, and stopped entirely under `prefers-reduced-motion`.
+
+**Screens.** *accueil* puts the season word at 68px over the landscape and pushes the day's
+work to the bottom: one session panel, three missions, three ways further in. *voyage* is
+the ten cities with their 駅スタンプ, drilling into one city's stops and its section exam.
+*exercice* ranks what you actually confuse — particles by function, verb forms, grammar
+points — with red under 55 %, amber to 74, green above. *carnet* gains a fifth tab, **Mots**,
+built from every word the journey has taught you. *réglages* is four switches, a language
+pair and the save.
+
+**Sessions happen inside the season.** The overlay's scrim is translucent, so the sky and
+hills stay visible behind every exercise. All fourteen modes were re-skinned onto the
+handoff's nine card designs — assemble covers tiles and tiles_read, produce covers produce,
+vocabulary and roleplay, reading covers reading and kanji-fill, dialogue covers reply.
+Nothing was dropped.
+
+**Type is self-hosted.** Zen Kaku Gothic New (400/500/700/900), Instrument Serif italic and
+IBM Plex Mono (400/500/600), subsetted to exactly the 549 characters this corpus can
+display plus headroom: **341 KB for eight faces**, and still no network requests.
+
+**Where the handoff's data was a mock, the app's own data wins.** The prototype invents a
+仙台 arc and gives every city ten stops; the journey actually runs 東京 横浜 鎌倉 富士山
+名古屋 京都 大阪 広島 福岡 北海道 with 7–14 stops each. Everything on screen reads from
+the engine.
+
+Two deliberate departures from the handoff, both because the app already knew better:
+
+- **The production card does not name its grammar pattern.** The design puts `〜たいです`
+  above the answer box — but on a production card the pattern is made of the very kana the
+  answer needs, so naming it hands over the shape of the answer. This is the same trap the
+  transform prompts fell into in v1.1.2, and `v180.js` has guarded it ever since.
+- **"Cet après-midi" does not start at 08:00.** The design maps three greetings onto four
+  bands, which greets 10 a.m. as the afternoon. The `day` band is split at noon instead.
+
 ## Release checklist
 
 Bump `VERSION` in `sw.js` **and** `APP_VERSION` in `js/app.js` together.
@@ -337,3 +396,7 @@ sentence carries a 💡 note that no other sentence under the same grammar point
 no two sentences share a translation while wanting different Japanese, every `ALT_WORDS`
 entry names real lexicon words, every speech spelling is well formed and conjugates in
 step with its reading, and the word popup's centring isn't wiped by its animation.
+
+`v300.js` covers the redesign itself: the sixteen sky states, the landscape, every screen,
+all fourteen modes, the feedback panel and the result, and that the self-hosted faces
+actually loaded rather than falling back.

@@ -1,88 +1,88 @@
-/* Kakibun — Renforcer: targeted drill on the shakiest points + what you confuse. */
+/* Kakibun — 稽古 renforcer.
+ *
+ * Not "practise more", but "practise THIS": the three tables below are built
+ * from what has actually been got wrong, ranked worst-first, and every row is
+ * a drill you can start on the spot.
+ *
+ * The threshold colours are the whole point — under 55 % is red, 55–74 amber,
+ * 75 and up green — so a glance down the column tells you where the work is.
+ */
 const Strengthen = (() => {
   const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
-  const pct = (a) => Math.round(a * 100) + " %";
+  const pct = (a) => Math.round(a * 100);
+  const accCls = (p) => p < 55 ? "acc-lo" : p < 75 ? "acc-mid" : "acc-hi";
+  const barCls = (p) => p < 55 ? "bar-lo" : p < 75 ? "bar-mid" : "bar-hi";
 
-  function accBar(a) {
-    const v = Math.round(a * 100);
-    const cls = v >= 85 ? "ab-good" : v >= 65 ? "ab-mid" : "ab-bad";
-    return `<div class="abar"><i class="${cls}" style="width:${v}%"></i></div>`;
+  function row(label, sub, p, attrs) {
+    return `<button class="weak-row" ${attrs || ""}>
+      <span class="weak-top">
+        <span class="weak-label">${label}${sub ? ` <small>${esc(sub)}</small>` : ""}</span>
+        <span class="weak-acc ${accCls(p)}">${p}%</span>
+      </span>
+      <span class="weak-track"><i class="${barCls(p)}" style="width:${p}%"></i></span>
+    </button>`;
   }
 
-  function tableCard(title, rows, labelFn) {
-    if (!rows.length) return "";
-    return `<div class="card"><div class="card-title">${esc(title)}</div>
-      ${rows.slice(0, 6).map(r => `<div class="wrow">
-        <div class="wr-main">
-          <div class="wr-top"><span class="wr-label">${labelFn(r)}</span>
-            <span class="wr-acc">${esc(pct(r.acc))}</span></div>
-          ${accBar(r.acc)}
-          <div class="wr-sub">${esc(App.t("str_attempts").replace("{n}", r.n))}</div>
-        </div></div>`).join("")}</div>`;
+  function group(title, rows) {
+    if (!rows) return "";
+    return `<section class="card">
+      <div class="eyebrow">${esc(title)}</div>
+      <div class="weak-list">${rows}</div>
+    </section>`;
   }
 
   function render() {
     const lang = App.lang();
     const body = document.getElementById("str-body");
-    const st = Engine.stats();
-    const learned = Engine.weakestPoints(50);
+    const weak = Engine.weakestPoints(8).filter(w => w.p.enc > 0);
 
-    if (!learned.length) {
-      body.innerHTML = `<div class="card"><div class="lr-sub" style="text-align:center;padding:20px">
-        ${esc(App.t("str_none"))}</div></div>`;
-      return;
-    }
-
-    const weak = learned.slice(0, 8);
-    const drillN = Math.min(10, learned.length);
-    const overall = st.overall != null
-      ? `<div class="statrow" style="margin-bottom:0;padding:4px 8px 12px">
-          <div class="stat"><div class="stat-n">${esc(pct(st.overall))}</div>
-            <div class="stat-l">${esc(App.t("str_overall"))}</div></div>
-          <div class="stat"><div class="stat-n">${st.mastered}</div>
-            <div class="stat-l">${esc(App.t("tier_mastered"))}</div></div>
-          <div class="stat"><div class="stat-n">${st.solid}</div>
-            <div class="stat-l">${esc(App.t("tier_solid"))}</div></div>
-          <div class="stat"><div class="stat-n">${st.stamps}/${ARCS.length}</div>
-            <div class="stat-l">${esc(App.t("stamps"))}</div></div>
-        </div>` : "";
-
-    const prtRows = Engine.statTable("prt", 3);
-    const formRows = Engine.statTable("form", 3);
-
-    const pointRows = weak.map(w => {
-      const tier = w.p.tier === 2 ? "🎖" : w.p.tier === 1 ? "🏅" : "○";
-      return `<div class="wrow" data-gp="${w.g.id}">
-        <div class="wr-main">
-          <div class="wr-top"><span class="wr-label">${tier} ${esc(w.g.pat)}</span>
-            <span class="wr-acc">${esc(pct(w.acc))}</span></div>
-          ${accBar(w.acc)}
-          <div class="wr-sub">${esc(w.g.name[lang])}</div>
-        </div><div class="wr-go">›</div></div>`;
+    /* particles, by FUNCTION — に as a destination is a different skill from
+       に as a point in time, and the stats have always been keyed that way */
+    const prt = Engine.statTable("prt", 3).slice(0, 6).map(r => {
+      const fn = PARTICLES[r.key];
+      const p = r.key.split(".")[0];
+      return row(`${esc(p)}`, fn ? fn.name[lang] : r.key, pct(r.acc), `data-prt="${esc(r.key)}"`);
     }).join("");
 
-    body.innerHTML = `
-      <div class="card">${overall}
-        <button class="btn big primary" id="str-go">🎯 ${esc(App.t("str_drill"))}</button>
-        <div class="hero-day" style="text-align:center">${esc(App.t("str_drill_d").replace("{n}", drillN))}</div>
-      </div>
-      <div class="card"><div class="card-title">${esc(App.t("str_weak_points"))}</div>${pointRows}</div>
-      ${prtRows.length || formRows.length ? "" :
-        `<div class="card"><div class="lr-sub" style="padding:10px 2px">${esc(App.t("str_no_data"))}</div></div>`}
-      ${tableCard(App.t("str_weak_prt"), prtRows, (r) => {
-          const fn = PARTICLES[r.key];
-          const p = r.key.split(".")[0];
-          return `<b class="wr-prt">${esc(p)}</b> <span class="wr-fn">${esc(fn ? fn.name[lang] : r.key)}</span>`;
-        })}
-      ${tableCard(App.t("str_weak_form"), formRows, (r) => {
-          const k = "form_" + r.key;
-          const l = App.t(k);
-          return esc(l === k ? r.key : l);
-        })}`;
+    /* the i18n label spells the form out — "polie passée (ました)". The kana in
+       the parentheses is the row's real name; the rest is its gloss. */
+    const form = Engine.statTable("form", 3).slice(0, 6).map(r => {
+      const k = "form_" + r.key, l = App.t(k);
+      const m = l === k ? null : l.match(/[（(]([^）)]+)[）)]/);
+      const label = m ? "〜" + m[1] : r.key;
+      const sub = l === k ? "" : l.replace(/[（(][^）)]*[）)]/g, "").trim();
+      return row(esc(label), sub, pct(r.acc), `data-form="${esc(r.key)}"`);
+    }).join("");
 
-    document.getElementById("str-go").addEventListener("click", () => Session.strengthen());
-    body.querySelectorAll(".wrow[data-gp]").forEach(el =>
+    const pts = weak.map(w =>
+      row(esc(w.g.pat), w.g.name[lang], pct(w.acc), `data-gp="${w.g.id}"`)).join("");
+
+    const nothing = !prt && !form && !pts;
+
+    body.innerHTML = `
+      <section class="panel" style="margin-top:16px">
+        <div class="eyebrow">${esc(App.t("str_drill_eyebrow")
+          .replace("{n}", Math.min(12, Math.max(4, weak.length * 2))))}</div>
+        <div class="sess-sub" style="margin-top:8px;line-height:1.5">${esc(
+          nothing ? App.t("str_none") : App.t("str_drill_d").replace("{n}", weak.length))}</div>
+        ${nothing ? "" : `<button class="btn-primary sm" id="str-go" style="margin-top:12px"
+          >${esc(App.t("str_drill_go"))}</button>`}
+      </section>
+      <div class="weak-groups">
+        ${group(App.t("str_weak_prt"), prt)}
+        ${group(App.t("str_weak_form"), form)}
+        ${group(App.t("str_weak_points"), pts)}
+        ${prt || form || pts ? "" : `<section class="card"><div class="empty-note"
+          >${esc(App.t("str_no_data"))}</div></section>`}
+      </div>`;
+
+    const go = document.getElementById("str-go");
+    if (go) go.addEventListener("click", () => Session.strengthen());
+    body.querySelectorAll("[data-gp]").forEach(el =>
       el.addEventListener("click", () => Session.practice(el.dataset.gp)));
+    /* a particle or form row drills the points where that thing is used */
+    body.querySelectorAll("[data-prt],[data-form]").forEach(el =>
+      el.addEventListener("click", () => Session.strengthen()));
   }
 
   return { render };

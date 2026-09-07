@@ -3,112 +3,138 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<meta name="theme-color" content="#faf6ef">
+<meta name="theme-color" content="#101a2c">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Kakibun</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preload" as="font" type="font/woff2" href="fonts/zkgn-400.woff2" crossorigin>
+<link rel="preload" as="font" type="font/woff2" href="fonts/zkgn-900.woff2" crossorigin>
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 
-<!-- ============ HOME ============ -->
-<main id="home" class="screen">
-  <header class="top">
-    <div class="brand"><span class="brand-torii">⛩</span> Kakibun</div>
-    <div id="streak-pill" class="streak-pill" hidden>🔥 <b id="streak-n">0</b></div>
-  </header>
+<!-- the landscape every screen stands on; built by js/scene.js -->
+<div id="scene" aria-hidden="true"></div>
 
-  <section id="newkanji-card" class="card newkanji" hidden>
-    <div class="nk-title" id="newkanji-title"></div>
-    <div class="nk-chars" id="newkanji-chars"></div>
-    <div class="nk-body" id="newkanji-body"></div>
-    <div class="nk-btns">
-      <button id="newkanji-later" class="btn small ghost"></button>
-      <button id="newkanji-go" class="btn small primary"></button>
+<div id="app">
+
+  <!-- ============ ACCUEIL ============ -->
+  <main id="home" class="screen">
+    <div class="status-row">
+      <span class="pill" id="status-place"></span>
+      <span class="pill ui" id="status-streak" hidden></span>
     </div>
-  </section>
 
-  <section id="kakikana-banner" class="card banner" hidden>
-    <div class="banner-txt" id="kakikana-banner-txt"></div>
-    <button id="kakikana-import-btn" class="btn small"></button>
-  </section>
+    <div class="head-block">
+      <div class="headline" id="head-season"></div>
+      <div class="head-poetic" id="head-poetic"></div>
+    </div>
 
-  <section class="card hero">
-    <div class="hero-line1" id="hero-title"></div>
-    <div class="hero-line2" id="hero-sub"></div>
-    <div class="hero-station" id="hero-station"></div>
-    <button id="go-session" class="btn big primary"></button>
-    <div class="hero-day" id="hero-day"></div>
-  </section>
+    <div class="home-bottom">
+      <section class="card" id="newkanji-card" hidden>
+        <div class="eyebrow" id="newkanji-title"></div>
+        <div class="nk-chars" id="newkanji-chars"></div>
+        <div class="sess-sub" id="newkanji-body"></div>
+        <div class="nk-btns">
+          <button id="newkanji-later" class="nk-later"></button>
+          <button id="newkanji-go" class="nk-go"></button>
+        </div>
+      </section>
 
-  <section class="card missions" id="missions-card" hidden>
-    <div class="card-title" id="missions-title"></div>
-    <div id="missions-list" class="mis-list"></div>
-  </section>
+      <section class="card banner" id="kakikana-banner" hidden>
+        <div class="txt" id="kakikana-banner-txt"></div>
+        <button id="kakikana-import-btn"></button>
+      </section>
 
-  <section class="card statrow">
-    <div class="stat"><div class="stat-n" id="stat-points">0</div><div class="stat-l" id="stat-points-l"></div></div>
-    <div class="stat"><div class="stat-n" id="stat-mastered">0</div><div class="stat-l" id="stat-mastered-l"></div></div>
-    <div class="stat"><div class="stat-n" id="stat-sentences">0</div><div class="stat-l" id="stat-sentences-l"></div></div>
-    <div class="stat"><div class="stat-n" id="stat-kanji">0</div><div class="stat-l" id="stat-kanji-l"></div></div>
-  </section>
+      <section class="panel">
+        <div class="eyebrow" id="sess-eyebrow"></div>
+        <div class="sess-pat" id="sess-pat"></div>
+        <div class="sess-sub" id="sess-desc"></div>
+        <button id="go-session" class="btn-primary"></button>
+      </section>
 
-  <section class="card" id="due-card" hidden>
-    <div class="card-title" id="due-title"></div>
-    <div id="due-list" class="due-list"></div>
-  </section>
-</main>
+      <section class="card" id="missions-card" hidden>
+        <div class="mis-head">
+          <span class="eyebrow" id="missions-title"></span>
+          <span class="eyebrow-n" id="missions-count"></span>
+        </div>
+        <div class="mis-list" id="missions-list"></div>
+      </section>
 
-<!-- ============ MAP ============ -->
-<main id="map" class="screen" hidden>
-  <header class="top"><div class="brand" id="map-title"></div></header>
-  <div id="map-scroll" class="map-scroll"></div>
-</main>
+      <div class="stat-row">
+        <button class="stat-btn" data-nav="journey">
+          <div class="stat-n" id="stat-stops"></div>
+          <div class="stat-l" id="stat-stops-l"></div>
+        </button>
+        <button class="stat-btn" data-nav="strengthen">
+          <div class="stat-n accent" id="stat-weak"></div>
+          <div class="stat-l" id="stat-weak-l"></div>
+        </button>
+        <button class="stat-btn" data-nav="library">
+          <div class="stat-n" id="stat-kanji"></div>
+          <div class="stat-l" id="stat-kanji-l"></div>
+        </button>
+      </div>
+    </div>
+  </main>
 
-<!-- ============ STRENGTHEN ============ -->
-<main id="strengthen" class="screen" hidden>
-  <header class="top"><div class="brand" id="str-title"></div></header>
-  <div id="str-body" class="set-body"></div>
-</main>
+  <!-- ============ VOYAGE ============ -->
+  <main id="journey" class="screen" hidden>
+    <div class="j-head">
+      <span class="scr-title" id="journey-title"></span>
+      <span class="pill" id="journey-pill"></span>
+    </div>
+    <div id="journey-body"></div>
+  </main>
 
-<!-- ============ LIBRARY ============ -->
-<main id="library" class="screen" hidden>
-  <header class="top"><div class="brand" id="lib-title"></div></header>
-  <div id="lib-body" class="lib-body"></div>
-</main>
+  <!-- ============ EXERCICE ============ -->
+  <main id="strengthen" class="screen" hidden>
+    <div style="flex:none">
+      <div class="scr-title" id="str-title"></div>
+      <div class="scr-sub" id="str-sub"></div>
+    </div>
+    <div id="str-body"></div>
+  </main>
 
-<!-- ============ SETTINGS ============ -->
-<main id="settings" class="screen" hidden>
-  <header class="top"><div class="brand" id="set-title"></div></header>
-  <div id="set-body" class="set-body"></div>
-</main>
+  <!-- ============ CARNET ============ -->
+  <main id="library" class="screen" hidden>
+    <div class="scr-title" id="lib-title" style="flex:none"></div>
+    <div class="lib-tabs" id="lib-tabs"></div>
+    <div class="lib-body" id="lib-body"></div>
+  </main>
+
+  <!-- ============ RÉGLAGES ============ -->
+  <main id="settings" class="screen" hidden>
+    <div class="scr-title" id="set-title" style="flex:none"></div>
+    <div id="set-body"></div>
+  </main>
+
+  <nav id="nav">
+    <button data-nav="home" class="nav-btn on" id="nav-home"></button>
+    <button data-nav="journey" class="nav-btn" id="nav-journey"></button>
+    <button data-nav="strengthen" class="nav-btn" id="nav-strengthen"></button>
+    <button data-nav="library" class="nav-btn" id="nav-library"></button>
+    <button data-nav="settings" class="nav-btn" id="nav-settings"></button>
+  </nav>
+</div>
 
 <!-- ============ SESSION (overlay) ============ -->
-<main id="session" class="screen overlay" hidden>
-  <header class="sess-top">
-    <button id="sess-quit" class="iconbtn">✕</button>
-    <div class="sess-bar"><div id="sess-bar-fill" class="sess-bar-fill"></div></div>
-    <div id="combo" class="combo" hidden>×<b id="combo-n">1</b></div>
-  </header>
-  <div id="sess-body" class="sess-body"></div>
-  <footer id="sess-foot" class="sess-foot"></footer>
+<main id="session" hidden>
+  <div class="sess-top">
+    <button id="sess-quit" class="sess-quit">✕</button>
+    <div class="sess-track"><i id="sess-bar-fill" style="width:0%"></i></div>
+    <span id="combo" class="combo" hidden>×<b id="combo-n">1</b></span>
+  </div>
+  <div class="kind" id="sess-kind"></div>
+  <div id="sess-body"></div>
+  <div id="sess-foot"></div>
 </main>
 
-<!-- word popup -->
-<div id="wordpop" class="wordpop" hidden></div>
-<!-- toasts -->
+<div id="wordpop" hidden></div>
 <div id="toast-root"></div>
-
-<nav id="nav" class="nav">
-  <button data-nav="home" class="nav-btn on"><span class="nav-ico">🏠</span><span class="nav-l" id="nav-home"></span></button>
-  <button data-nav="map" class="nav-btn"><span class="nav-ico">🗾</span><span class="nav-l" id="nav-map"></span></button>
-  <button data-nav="strengthen" class="nav-btn"><span class="nav-ico">🎯</span><span class="nav-l" id="nav-strengthen"></span></button>
-  <button data-nav="library" class="nav-btn"><span class="nav-ico">📚</span><span class="nav-l" id="nav-library"></span></button>
-  <button data-nav="settings" class="nav-btn"><span class="nav-ico">⚙️</span><span class="nav-l" id="nav-settings"></span></button>
-</nav>
 
 <input type="file" id="import-file" accept="application/json,.json" hidden>
 <input type="file" id="restore-file" accept="application/json,.json" hidden>
@@ -126,6 +152,7 @@
 <script src="js/kana.js"></script>
 <script src="js/bridge.js"></script>
 <script src="js/season.js"></script>
+<script src="js/scene.js"></script>
 <script src="js/engine.js"></script>
 <script src="js/sfx.js"></script>
 <script src="js/voice.js"></script>

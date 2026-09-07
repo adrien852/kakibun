@@ -1,92 +1,149 @@
-/* Kakibun — the journey map: 10 arcs (cities across Japan), 100 stops,
- * with the arc's exam checkpoint and its 駅スタンプ at the end of each section.
+/* Kakibun — 旅 the journey.
  *
- * v2.1 turns the list into an actual journey. The rail is drawn in two halves —
- * the part already travelled takes the season's colour, the part ahead stays
- * grey — and a traveller sits at the current stop, so the map answers "where am
- * I?" at a glance instead of asking you to count dots.
+ * Two levels, not two screens: the ten cities, and one city opened. The
+ * landscape behind never changes, so opening a city reads as stepping closer
+ * rather than as navigating away.
+ *
+ * The 駅スタンプ card at the top is the whole journey at a glance — ten circles,
+ * each rotated a fixed few degrees so the row looks hand-stamped rather than
+ * printed.
  */
 const Journey = (() => {
   const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
+  const $ = (id) => document.getElementById(id);
 
-  /* One landmark per city — what you would actually see when you arrived. */
-  const LANDMARK = { a1:"🗼", a2:"⚓", a3:"🗿", a4:"🗻", a5:"🏯",
-                     a6:"⛩", a7:"🍢", a8:"🕊", a9:"🍜", a10:"❄️" };
+  /* the stamp row reads as hand-stamped, not printed */
+  const ROT = [-7, 5, -4, 3, -6, 2, -3, 6, -5, 4];
+  /* two characters is what fits a 41px circle */
+  const abbr = (jp) => jp.length > 2 ? jp.slice(0, 2) : jp;
+
+  let openCity = null;                 // arc id, or null for the list
 
   function render() {
     const lang = App.lang();
     const cur = Engine.currentIndex();
-    const total = GRAMMAR.length;
-    const root = document.getElementById("map-scroll");
-    const season = Season.current();
-    const pct = Math.round(Math.min(cur, total) / total * 100);
-    const here = cur < total ? GRAMMAR[cur] : null;
-    const hereArc = here ? ARCS.find(a => a.id === here.arc) : null;
-
-    let html = `
-    <div class="j-head">
-      <div class="j-season">${season.motif} ${esc(Season.label(lang))}</div>
-      <div class="j-where">${hereArc
-        ? `<span class="j-mark">${LANDMARK[hereArc.id]}</span>
-           <span class="j-city">${esc(hereArc.jp)}</span>
-           <span class="j-city-fr">${esc(hereArc.city[lang])}</span>`
-        : `<span class="j-mark">🎌</span><span class="j-city">${esc(App.t("j_done"))}</span>`}</div>
-      <div class="j-bar"><i style="width:${pct}%"></i></div>
-      <div class="j-pct">${esc(App.t("j_progress").replace("{a}", Math.min(cur, total)).replace("{b}", total))}</div>
-    </div>
-    <div class="stamp-row">${ARCS.map(a =>
-      Exam.stampHtml(a.id, Engine.hasStamp(a.id))).join("")}
-      <div class="stamp-count">${esc(App.t("stamps_n")
-        .replace("{a}", Engine.stampCount()).replace("{b}", ARCS.length))}</div></div>`;
-
-    let gi = 0;
-    for (const arc of ARCS) {
-      const points = GRAMMAR.filter(g => g.arc === arc.id);
-      const startIdx = gi;
-      const arcUnlocked = startIdx <= cur;
-      const doneCount = points.filter(g => Engine.point(g.id).tier >= 1).length;
-      // how far down this arc's rail the traveller has come, as a percentage
-      const travelled = Math.max(0, Math.min(points.length, cur - startIdx));
-      const railPct = Math.round(travelled / points.length * 100);
-      html += `<div class="arc ${arcUnlocked ? "" : "arc-locked"}">
-        <div class="arc-head">
-          <span class="arc-mark">${LANDMARK[arc.id]}</span>
-          <span class="arc-jp">${esc(arc.jp)}</span>
-          <span class="arc-name">${esc(arc.city[lang])} — ${esc(arc.name[lang])}</span>
-          <span class="arc-count">${doneCount}/${points.length}</span></div>
-        <div class="stations" style="--rail:${railPct}%">`;
-      for (const g of points) {
-        const i = gi++;
-        const p = Engine.point(g.id);
-        const mp = Engine.masteryProgress(g.id);
-        const isHere = i === cur;
-        const cls = p.tier >= 1 ? "done" : isHere ? "cur" : i < cur ? "" : "locked";
-        const rank = p.tier === 2 ? "🎖" : p.tier === 1 ? "🏅" : isHere ? "📍" : i < cur ? "○" : "🔒";
-        const bar = (i <= cur && p.tier === 0 && p.enc > 0)
-          ? `<div class="mbar"><i style="width:${Math.round(mp.pct * 100)}%"></i></div>` : "";
-        const dlg = Engine.dialoguesFor(g.id).length;
-        html += `<div class="station ${cls}" ${i <= cur ? `data-gp="${g.id}"` : ""}>
-          <div class="dot"></div>
-          ${isHere ? `<div class="traveller" aria-hidden="true">🚶</div>` : ""}
-          <div class="st-card"><div class="st-rank">${rank}</div>
-          <div class="st-main"><div class="st-pat">${esc(g.pat)}</div>
-          <div class="st-name">${esc(g.name[lang])}${dlg && i <= cur ? ` <span class="st-dlg">💬${dlg}</span>` : ""}</div>${bar}</div></div></div>`;
-      }
-      html += `</div>`;
-      if (arcUnlocked) html += Exam.cardHtml(arc.id);
-      html += `</div>`;
-    }
-    if (Engine.grandUnlocked()) html += Exam.cardHtml("grand");
-    root.innerHTML = html;
-    root.querySelectorAll(".station[data-gp]").forEach(el =>
-      el.addEventListener("click", () => Session.practice(el.dataset.gp)));
-    root.querySelectorAll(".exam-card[data-exam]").forEach(el =>
-      el.addEventListener("click", () => Session.exam(el.dataset.exam)));
-
-    // bring the traveller into view rather than dumping you at the top of Japan
-    const me = root.querySelector(".station.cur");
-    if (me) setTimeout(() => me.scrollIntoView({ block: "center", behavior: "auto" }), 30);
+    $("journey-pill").textContent = `${Season.current().jp} · ${cur}/${GRAMMAR.length}`;
+    $("journey-body").innerHTML = openCity ? cityHtml(openCity, lang) : listHtml(lang);
+    bind();
+    $("journey").scrollTop = 0;
   }
 
-  return { render, LANDMARK };
+  /* ---------- the ten cities ---------- */
+  function listHtml(lang) {
+    const cur = Engine.currentIndex();
+    const stamps = ARCS.map((a, i) => {
+      const got = Engine.hasStamp(a.id);
+      return `<span class="stamp ${got ? "got" : ""}" style="transform:rotate(${ROT[i] || 0}deg)"
+        >${esc(abbr(a.jp))}</span>`;
+    }).join("");
+
+    let gi = 0;
+    const rows = ARCS.map((a) => {
+      const pts = GRAMMAR.filter(g => g.arc === a.id);
+      const start = gi; gi += pts.length;
+      const done = pts.filter(g => Engine.point(g.id).tier >= 1).length;
+      const seen = pts.filter(g => Engine.point(g.id).enc > 0).length;
+      const reached = start <= cur;
+      const full = done === pts.length;
+      // a city you have entered but mastered nothing in still reads as begun
+      const pct = done ? Math.round(done / pts.length * 100) : (seen ? 4 : 0);
+      const bar = full ? "var(--ok)" : seen ? "var(--accent)" : "rgba(255,255,255,.3)";
+      const got = Engine.hasStamp(a.id);
+      return `<button class="city-row" data-city="${a.id}">
+        <span class="city-stamp ${got ? "got" : ""}">${esc(abbr(a.jp))}</span>
+        <span class="city-main">
+          <span class="city-top">
+            <span class="city-jp ${reached ? "on" : ""}">${esc(a.jp)}</span>
+            <span class="city-fr">${esc(a.name[lang])}</span>
+          </span>
+          <span class="city-track"><i style="width:${pct}%;background:${bar}"></i></span>
+        </span>
+        <span class="city-count">${done}/${pts.length}</span>
+      </button>`;
+    }).join("");
+
+    /* the ten stamps open the grand journey — the row only exists once they do */
+    const grand = Engine.grandUnlocked() ? `<div class="exam-row" style="margin-top:9px">
+        <span class="lbl">${esc(App.t("exam_grand"))}<small>${esc(App.t("exam_grand_d"))}</small></span>
+        <button class="exam-go" data-exam="grand">${esc(App.t("exam_pass_s"))}</button>
+      </div>` : "";
+
+    return `<section class="card stamp-card">
+        <div class="mis-head">
+          <span class="eyebrow">駅スタンプ</span>
+          <span class="eyebrow-n">${Engine.stampCount()}/${ARCS.length}</span>
+        </div>
+        <div class="stamp-grid">${stamps}</div>
+        <div class="stamp-note">${esc(App.t("stamp_note"))}</div>
+      </section>
+      <div class="city-list">${rows}${grand}</div>`;
+  }
+
+  /* ---------- one city opened ---------- */
+  function cityHtml(arcId, lang) {
+    const a = ARCS.find(x => x.id === arcId);
+    const pts = GRAMMAR.filter(g => g.arc === arcId);
+    const cur = Engine.currentIndex();
+    const firstIdx = GRAMMAR.findIndex(g => g.arc === arcId);
+
+    const stops = pts.map((g, n) => {
+      const i = firstIdx + n;
+      const p = Engine.point(g.id);
+      const locked = i > cur;
+      const isHere = i === cur;
+      const mark = p.tier >= 1 ? "✓" : isHere ? "🚶" : locked ? "🔒" : "○";
+      const dot = p.tier >= 1 ? "done" : isHere ? "cur" : "";
+      const state = p.tier === 2 ? "state_solid" : p.tier === 1 ? "state_mastered"
+                  : locked ? "state_locked" : isHere ? "state_current" : "state_learned";
+      const cls = locked ? "locked" : isHere ? "cur" : "";
+      const dlg = Engine.dialoguesFor(g.id).length;
+      return `<button class="stop-row" ${locked ? "" : `data-gp="${g.id}"`}>
+        <span class="stop-dot ${dot}">${mark}</span>
+        <span class="stop-main">
+          <span class="stop-pat">${esc(g.pat)}</span>
+          <span class="stop-name">${esc(g.name[lang])}${dlg && !locked ? ` · 💬${dlg}` : ""}</span>
+        </span>
+        <span class="stop-state ${cls}">${esc(App.t(state))}</span>
+      </button>`;
+    }).join("");
+
+    const open = Exam.unlocked(arcId);
+    const stamp = Engine.state().stamps[arcId];
+    const examSub = !open ? App.t("exam_locked").replace("{n}", pts.length)
+                  : stamp ? App.t("exam_stamp_have").replace("{d}", stamp.date)
+                  : App.t("exam_len").replace("{n}", Exam.length(arcId));
+
+    return `<section class="city-detail">
+      <button class="city-back">← ${esc(App.t("all_cities"))}</button>
+      <div class="city-name">
+        <span class="jp">${esc(a.jp)}</span>
+        <span class="fr">${esc(a.name[lang])}</span>
+      </div>
+      <div class="stop-list">
+        ${stops}
+        <div class="exam-row">
+          <span class="lbl">${esc(App.t("exam_section"))}<small>${esc(examSub)}</small></span>
+          <button class="exam-go" data-exam="${arcId}" ${open ? "" : "disabled"}
+            >${esc(open ? (stamp ? App.t("exam_retake_s") : App.t("exam_pass_s")) : "🔒")}</button>
+        </div>
+      </div>
+    </section>`;
+  }
+
+  function bind() {
+    const body = $("journey-body");
+    body.querySelectorAll(".city-row").forEach(el =>
+      el.addEventListener("click", () => { openCity = el.dataset.city; Sfx.tap(); render(); }));
+    const back = body.querySelector(".city-back");
+    if (back) back.addEventListener("click", () => { openCity = null; Sfx.tap(); render(); });
+    body.querySelectorAll(".stop-row[data-gp]").forEach(el =>
+      el.addEventListener("click", () => Session.practice(el.dataset.gp)));
+    body.querySelectorAll(".exam-go[data-exam]").forEach(el =>
+      el.addEventListener("click", () => { if (!el.disabled) Session.exam(el.dataset.exam); }));
+  }
+
+  /* the grand exam lives at the end of the list once all ten stamps are in */
+  const close = () => { openCity = null; };
+
+  return { render, close, ROT };
 })();

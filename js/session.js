@@ -1,6 +1,13 @@
 /* Kakibun — session runner.
- * Modes: lesson · tiles_read · tiles · cloze · transform · speak · spot · reading
- *        kanjifill · listen · produce · vocab   (the last three answer without tiles)
+ *
+ * Fourteen modes over the nine card designs: lesson · tiles_read · tiles ·
+ * cloze · transform · speak · spot · reading · kanjifill · listen · produce ·
+ * vocab · reply · roleplay.
+ *
+ * The session is an overlay, not a screen: its scrim is translucent so the
+ * season stays visible behind every exercise. That is what makes a session
+ * feel like it happens IN the place rather than on top of it.
+ *
  * Variants via opts: {exam:{arc}} no hints / no retries / scored
  *                    {drill:true} Renforcer   {debut:{chars}} new-kanji session
  */
@@ -35,9 +42,10 @@ const Session = (() => {
     if (tok.type === "punct") return `<span class="tok">${esc(tok.surfR)}</span>`;
     if (o.blank === i) return `<span class="tok blank" data-i="${i}">？</span>`;
     if (o.swap && o.swap.i === i)
-      return `<span class="tok prt pick" data-i="${i}">${esc(o.swap.surf)}</span>`;
+      return `<span class="${o.spot ? "spot-tok prt" : "tok prt"} pick" data-i="${i}">${esc(o.swap.surf)}</span>`;
     if (o.pick === "p" && tok.type === "p")
-      return `<span class="tok prt pick" data-i="${i}">${esc(tok.surfR)}</span>`;
+      return `<span class="${o.spot ? "spot-tok prt" : "tok prt"} pick" data-i="${i}">${esc(tok.surfR)}</span>`;
+    if (o.spot) return `<span class="spot-tok" data-i="${i}">${segHtml(tok, d)}</span>`;
     if (o.kfill && o.kfill.i === i && tok.surfK != null) {
       // the word stays visible so its shape is a clue — one character is gone
       const html = [...tok.surfK].map((c, k) => k === o.kfill.ci
@@ -61,6 +69,7 @@ const Session = (() => {
   function jpHtml(parsed, o) {
     o = o || {};
     const body = parsed.toks.map((t, i) => tokHtml(t, i, o)).join("");
+    if (o.plain) return body + "。";
     return `<div class="jp">${body}<span class="tok">。</span></div>`;
   }
 
@@ -73,17 +82,15 @@ const Session = (() => {
     });
   }
 
-  const tts = (parsed, rate) => Voice.speak(parsed.surfK + "。", rate);
-  const foot = (b) => { $("sess-foot").innerHTML = `<div class="sess-foot-in">${b}</div>`; };
+  const tts = (parsed, rate) => { Voice.speak(parsed.surfK + "。", rate); Sfx.voice(); };
+  const foot = (b) => { $("sess-foot").innerHTML = b; };
   const setBar = () => { $("sess-bar-fill").style.width = (idx / items.length * 100) + "%"; };
 
+  /* The card kind lives in the fixed chrome above the body, as an eyebrow in
+   * the season's accent — so it never scrolls away with the exercise. */
   function kindLine(kind, extra) {
-    const icons = { lesson:"⛩", tiles:"🎧", tiles_read:"🧩", cloze:"✏️", speak:"🎤",
-                    transform:"🔁", spot:"🔍", reading:"🈯", debut:"✨",
-                    listen:"👂", produce:"🗣", vocab:"📖", kanjifill:"🈳",
-                    reply:"💬", roleplay:"🎭" };
-    const label = extra || App.t("kind_" + kind);
-    return `<div class="prompt-kind"><span class="pk-ico">${icons[kind] || ""}</span>${esc(label)}</div>`;
+    $("sess-kind").textContent = extra || App.t("kind_" + kind);
+    return "";
   }
 
   /* ---------- feedback ---------- */
@@ -93,7 +100,8 @@ const Session = (() => {
     const cEl = $("combo");
     cEl.hidden = combo < 2;
     $("combo-n").textContent = combo;
-    cEl.classList.toggle("hot", combo >= 4);
+    // re-trigger the pop each time the number changes
+    cEl.classList.remove("bump"); void cEl.offsetWidth; cEl.classList.add("bump");
     if (ok) { Sfx.good(combo); score++; } else Sfx.bad();
     total++;
     results.push({ gp: gpId, ok, sent: curItem.sent, kind: curItem.kind });
@@ -103,15 +111,15 @@ const Session = (() => {
     const gloss = sent ? sent[lang] : (curItem.word && LEXICON[curItem.word] ? LEXICON[curItem.word][lang] : "");
     const box = document.createElement("div");
     box.className = "fb " + (ok ? "good" : "bad");
-    box.innerHTML = `<div class="fb-head">${ok ? esc(App.pickOk()) : esc(App.t("bad"))}</div>
-      ${!ok ? `<div class="wp-note">${esc(App.t("answer_was"))}</div>` : ""}
+    box.innerHTML = `<div class="fb-halo"></div>
+      <div class="fb-head">${ok ? esc(App.pickOk()) : esc(App.t("bad"))}</div>
       <div class="fb-jp"></div>
-      ${gloss ? `<div class="translation">${esc(gloss)}</div>` : ""}
-      ${!isExam() && sent && sent.note ? `<div class="why"><div class="why-t">💡</div>${esc(sent.note[lang])}</div>` : ""}
+      ${gloss ? `<div class="fb-fr">${esc(gloss)}</div>` : ""}
+      ${!isExam() && sent && sent.note ? `<div class="fb-note">💡 ${esc(sent.note[lang])}</div>` : ""}
       ${curBad.length && ok ? `<div class="fb-expl">${esc(App.t("speak_watch"))} <b>${
           curBad.map(i => esc(parsed.toks[i].surfK != null ? parsed.toks[i].surfK : parsed.toks[i].surfR)).join(" · ")}</b></div>` : ""}
       ${isExam() ? "" : (extraHtml || "")}`;
-    box.querySelector(".fb-jp").innerHTML = jpHtml(parsed, { bad: curBad });
+    box.querySelector(".fb-jp").innerHTML = jpHtml(parsed, { bad: curBad, plain: true });
     $("sess-body").appendChild(box);
     bindTaps(box, parsed, gpId);
 
@@ -134,8 +142,14 @@ const Session = (() => {
       Engine.recordStats(curCtx, ok);
       Engine.noteSeen(curItem.sent);
     }
-    foot(`<button class="btn big primary" id="fb-next">${esc(App.t("cont"))}</button>`);
-    $("fb-next").addEventListener("click", next);
+    const last = idx >= items.length - 1;
+    const btn = document.createElement("button");
+    btn.className = "fb-next";
+    btn.id = "fb-next";
+    btn.textContent = App.t(last ? "see_result" : "cont");
+    box.appendChild(btn);
+    btn.addEventListener("click", next);
+    foot("");
     box.scrollIntoView({ behavior: "smooth", block: "end" });
   }
 
@@ -147,23 +161,19 @@ const Session = (() => {
     const parsed = Parse.sentence(exSent.dsl);
     curParsed = parsed;
     $("sess-body").innerHTML = `${kindLine("lesson")}
-      <div class="lesson">
-        <div class="les-pat">${esc(g.pat)}</div>
-        <div class="les-name">${esc(g.name[lang])}</div>
-        <div class="les-expl">${esc(g.expl[lang])}</div>
-        <div class="les-ex">
-          <div class="card-title">${esc(App.t("les_example"))}</div>
-          <div class="audio-row"><button class="audio-sm" id="les-play">🔊</button></div>
-          <div id="les-jp"></div>
-          <div class="translation">${esc(exSent[lang])}</div>
+      <div class="lesson-card">
+        <div class="lesson-pat">${esc(g.pat)}</div>
+        <div class="lesson-gloss">${esc(g.name[lang])}</div>
+        <div class="lesson-expl">${esc(g.expl[lang])}</div>
+        <div class="lesson-ex">
+          <div class="jp" id="les-jp"></div>
+          <div class="fr">${esc(exSent[lang])}</div>
         </div>
-        <div class="les-tip">${esc(App.t("les_tip"))}</div>
       </div>`;
-    $("les-jp").innerHTML = jpHtml(parsed);
+    $("les-jp").innerHTML = jpHtml(parsed, { plain: true });
     bindTaps($("sess-body"), parsed, g.id);
-    $("les-play").addEventListener("click", () => tts(parsed));
     setTimeout(() => tts(parsed), 600);
-    foot(`<button class="btn big primary" id="les-go">${esc(App.t("les_start"))}</button>`);
+    foot(`<button class="btn-primary" id="les-go">${esc(App.t("les_start"))}</button>`);
     $("les-go").addEventListener("click", next);
   }
 
@@ -202,19 +212,23 @@ const Session = (() => {
     const d = dispOpts();
     $("sess-body").innerHTML = `${kindLine(withText ? "tiles_read" : "tiles",
         item.debut ? App.t("kind_debut") : null)}
-      <button class="audio-big" id="t-play">🔊</button>
-      ${showTr ? `<div class="translation" style="text-align:center">${esc(sent[lang])}</div>` : ""}
-      <div class="answer-row" id="t-answer"></div>
-      <div class="tile-bank" id="t-bank">${shuffled.map(x =>
+      <button class="audio-big" id="t-play"><span class="ring"></span><span>🔊</span></button>
+      ${showTr ? `<div class="audio-hint">${esc(sent[lang])}</div>` : ""}
+      <div class="tray" id="t-answer"><span class="tray-hint" id="t-hint"
+        >${esc(App.t("tiles_hint"))}</span></div>
+      <div class="bank" id="t-bank">${shuffled.map(x =>
         `<button class="tile" data-n="${x.n}">${segHtml(x.t, d)}</button>`).join("")}</div>`;
     const seq = [], bank = $("t-bank"), ans = $("t-answer");
-    const sync = () => { $("t-check").disabled = seq.length === 0; };
+    const sync = () => {
+      $("t-check").disabled = seq.length === 0;
+      const h = $("t-hint"); if (h) h.style.display = seq.length ? "none" : "";
+    };
     bank.querySelectorAll(".tile").forEach(b => b.addEventListener("click", () => {
       if (b.classList.contains("used")) return;
       Sfx.tap();
       b.classList.add("used");
       const clone = document.createElement("button");
-      clone.className = "tile in-answer";
+      clone.className = "tile built";
       clone.innerHTML = b.innerHTML;
       clone.dataset.n = b.dataset.n;
       clone.addEventListener("click", () => {
@@ -230,14 +244,15 @@ const Session = (() => {
     }));
     $("t-play").addEventListener("click", () => tts(parsed));
     setTimeout(() => tts(parsed), 500);
-    foot(`<button class="btn ghost" id="t-replay">${esc(App.t("replay"))}</button>
-          <button class="btn big primary" id="t-check" disabled>${esc(App.t("check"))}</button>`);
+    foot(`<button class="btn-primary" id="t-check" disabled>${esc(App.t("check"))}</button>
+          <button class="btn-ghost" id="t-replay" style="margin-top:9px">🐢 ${esc(App.t("replay"))}</button>`);
     $("t-replay").addEventListener("click", () => tts(parsed, 0.7));
     $("t-check").addEventListener("click", () => {
       const built = seq.map(c => combined[+c.dataset.n].surfR).join("");
       const want = target.map(t => t.surfR).join("");
       $("sess-foot").innerHTML = "";
       bank.querySelectorAll(".tile").forEach(b => b.classList.add("used"));
+      ans.querySelectorAll(".tile").forEach(b => b.classList.add("used"));
       feedback(built === want && firstTry, parsed, item.gp);
     });
   }
@@ -260,25 +275,26 @@ const Session = (() => {
       .filter(x => x !== correct).sort(() => Math.random() - 0.5).slice(0, 5);
     const choices = pool.concat([correct]).sort(() => Math.random() - 0.5);
     $("sess-body").innerHTML = `${kindLine("cloze")}
-      <div id="c-jp"></div>
-      ${isExam() ? "" : `<div class="translation">${esc(sent[lang])}</div>`}
-      <div class="choices prt-choices" id="c-choices">${choices.map(c =>
-        `<button class="choice" data-c="${esc(c)}">${esc(c)}</button>`).join("")}</div>`;
-    $("c-jp").innerHTML = jpHtml(parsed, { blank });
+      <div class="stem"><div class="jp" id="c-jp"></div>
+        ${isExam() ? "" : `<div class="fr">${esc(sent[lang])}</div>`}</div>
+      <div class="opts grid" id="c-choices">${choices.map(c =>
+        `<button class="opt" data-c="${esc(c)}">${esc(c)}</button>`).join("")}</div>`;
+    $("c-jp").innerHTML = jpHtml(parsed, { blank, plain: true });
     bindTaps($("sess-body"), parsed, item.gp);
     foot("");
     let done = false;
-    $("c-choices").querySelectorAll(".choice").forEach(b => b.addEventListener("click", () => {
+    $("c-choices").querySelectorAll(".opt").forEach(b => b.addEventListener("click", () => {
       if (done) return;
       const ok = b.dataset.c === correct;
       if (!ok && !isExam()) { b.classList.add("ko"); firstTry = false; Sfx.bad(); return; }
       done = true;
       b.classList.add(ok ? "ok" : "ko");
-      $("c-choices").querySelectorAll(".choice").forEach(x => {
+      $("c-choices").classList.add("locked");
+      $("c-choices").querySelectorAll(".opt").forEach(x => {
         if (x !== b) x.classList.add(x.dataset.c === correct ? "ok" : "dim");
       });
       const fn = PARTICLES[tok.fn];
-      const why = fn ? `<div class="why"><div class="why-t">${esc(App.t("why").replace("{p}", correct))} — ${esc(fn.name[lang])}</div>${esc(fn.expl[lang])}</div>` : "";
+      const why = fn ? `<div class="fb-expl"><b>${esc(App.t("why").replace("{p}", correct))} — ${esc(fn.name[lang])}</b><br>${esc(fn.expl[lang])}</div>` : "";
       tts(parsed);
       feedback(ok && firstTry, parsed, item.gp, why);
     }));
@@ -297,20 +313,25 @@ const Session = (() => {
     const bad = c.alts[Math.floor(Math.random() * c.alts.length)];
     curCtx = { mode: "spot", prt: c.fn };
     $("sess-body").innerHTML = `${kindLine("spot")}
-      <div id="sp-jp"></div>
-      <div class="mic-hint spot-hint">${esc(App.t("spot_hint"))}</div>`;
-    $("sp-jp").innerHTML = jpHtml(parsed, { swap: { i: c.i, surf: bad }, pick: "p" });
+      <div class="spot-card">
+        <div class="spot-hint">${esc(App.t("spot_hint"))}</div>
+        <div class="spot-jp" id="sp-jp"></div>
+        <div class="spot-fr">${esc(sent[lang])}</div>
+      </div>`;
+    $("sp-jp").innerHTML = jpHtml(parsed, { swap: { i: c.i, surf: bad }, pick: "p", spot: true, plain: true });
     foot("");
     let done = false;
-    $("sp-jp").querySelectorAll(".tok.pick").forEach(el => el.addEventListener("click", () => {
+    /* the spot card renders .spot-tok, the rest of the app .tok — `.pick` is
+       what both agree on, and what marks a token as tappable here */
+    $("sp-jp").querySelectorAll(".pick").forEach(el => el.addEventListener("click", () => {
       if (done) return;
       const ok = +el.dataset.i === c.i;
       if (!ok && !isExam()) { el.classList.add("ko"); firstTry = false; Sfx.bad(); return; }
       done = true;
-      $("sp-jp").querySelector(`.tok.pick[data-i="${c.i}"]`).classList.add("ok");
+      $("sp-jp").querySelector(`.pick[data-i="${c.i}"]`).classList.add("ok");
       if (!ok) el.classList.add("ko");
       const fn = PARTICLES[c.fn];
-      const why = `<div class="why"><div class="why-t">${esc(App.t("spot_why").replace("{good}", good).replace("{bad}", bad))}</div>${fn ? esc(fn.expl[lang]) : ""}</div>`;
+      const why = `<div class="fb-expl"><b>${esc(App.t("spot_why").replace("{good}", good).replace("{bad}", bad))}</b>${fn ? "<br>" + esc(fn.expl[lang]) : ""}</div>`;
       tts(parsed);
       feedback(ok && firstTry, parsed, item.gp, why);
     }));
@@ -344,29 +365,29 @@ const Session = (() => {
     const choices = pool.sort(() => Math.random() - 0.5).slice(0, 3).concat([correct])
       .sort(() => Math.random() - 0.5);
     $("sess-body").innerHTML = `${kindLine("reading")}
-      <div id="rd-jp"></div>
-      ${isExam() ? "" : `<div class="translation">${esc(sent[lang])}</div>`}
-      <div class="rd-target">${esc(c.ch)}</div>
-      <div class="mic-hint">${esc(App.t("reading_q"))}</div>
-      <div class="choices" id="rd-choices">${choices.map(r =>
-        `<button class="choice" data-r="${esc(r)}">${esc(r)}</button>`).join("")}</div>`;
-    $("rd-jp").innerHTML = jpHtml(parsed, { target: { i: c.tokIdx, ch: c.ch }, d });
+      <div class="stem"><div class="jp" id="rd-jp"></div>
+        ${isExam() ? "" : `<div class="fr">${esc(sent[lang])}</div>`}</div>
+      <div class="audio-hint" style="margin-top:14px">${esc(App.t("reading_q"))}</div>
+      <div class="opts grid" id="rd-choices">${choices.map(r =>
+        `<button class="opt" data-r="${esc(r)}">${esc(r)}</button>`).join("")}</div>`;
+    $("rd-jp").innerHTML = jpHtml(parsed, { target: { i: c.tokIdx, ch: c.ch }, d, plain: true });
     foot("");
     let done = false;
-    $("rd-choices").querySelectorAll(".choice").forEach(b => b.addEventListener("click", () => {
+    $("rd-choices").querySelectorAll(".opt").forEach(b => b.addEventListener("click", () => {
       if (done) return;
       const ok = b.dataset.r === correct;
       if (!ok && !isExam()) { b.classList.add("ko"); firstTry = false; Sfx.bad(); return; }
       done = true;
       b.classList.add(ok ? "ok" : "ko");
-      $("rd-choices").querySelectorAll(".choice").forEach(x => {
+      $("rd-choices").classList.add("locked");
+      $("rd-choices").querySelectorAll(".opt").forEach(x => {
         if (x !== b) x.classList.add(x.dataset.r === correct ? "ok" : "dim");
       });
       const tag = c.rt.type === "on" ? "音 " + App.t("wp_on") : "訓 " + App.t("wp_kun");
       const fq = c.rt.f === 2 ? App.t("wp_main") : c.rt.f === 1 ? App.t("wp_common") : App.t("wp_rare");
       const note = c.rt.note ? `<br>${esc(c.rt.note[lang])}` : "";
-      const why = `<div class="why"><div class="why-t">${esc(c.ch)} → ${esc(correct)} · ${esc(tag)} · ${esc(fq)}</div>
-        ${esc(info[lang])}${note}<br><span class="wp-note">${esc(App.t("reading_why").replace("{k}", c.ch))}</span></div>`;
+      const why = `<div class="fb-expl"><b>${esc(c.ch)} → ${esc(correct)} · ${esc(tag)} · ${esc(fq)}</b><br>
+        ${esc(info[lang])}${note}<br>${esc(App.t("reading_why").replace("{k}", c.ch))}</div>`;
       tts(parsed);
       feedback(ok && firstTry, parsed, item.gp, why);
     }));
@@ -392,28 +413,29 @@ const Session = (() => {
     const choices = Engine.kanjiDistractors(c.ch, pool, 3).concat([c.ch])
       .sort(() => Math.random() - 0.5);
     $("sess-body").innerHTML = `${kindLine("kanjifill")}
-      <div id="kf-jp"></div>
-      ${isExam() ? "" : `<div class="translation">${esc(sent[lang])}</div>`}
-      <div class="kf-read">${esc(c.reading)}</div>
-      <div class="mic-hint">${esc(App.t("kanjifill_q"))}</div>
-      <div class="choices" id="kf-choices">${choices.map(k =>
-        `<button class="choice kf-choice" data-k="${esc(k)}">${esc(k)}</button>`).join("")}</div>`;
-    $("kf-jp").innerHTML = jpHtml(parsed, { kfill: { i: c.tokIdx, ci: c.ci }, d });
+      <div class="stem"><div class="jp" id="kf-jp"></div>
+        ${isExam() ? "" : `<div class="fr">${esc(sent[lang])}</div>`}
+        <div class="fr" style="margin-top:9px">${esc(App.t("kanjifill_q"))}
+          <b class="kf-read">${esc(c.reading)}</b></div></div>
+      <div class="opts grid" id="kf-choices">${choices.map(k =>
+        `<button class="opt" data-k="${esc(k)}">${esc(k)}</button>`).join("")}</div>`;
+    $("kf-jp").innerHTML = jpHtml(parsed, { kfill: { i: c.tokIdx, ci: c.ci }, d, plain: true });
     foot("");
     let done = false;
-    $("kf-choices").querySelectorAll(".choice").forEach(b => b.addEventListener("click", () => {
+    $("kf-choices").querySelectorAll(".opt").forEach(b => b.addEventListener("click", () => {
       if (done) return;
       const ok = b.dataset.k === c.ch;
       if (!ok && !isExam()) { b.classList.add("ko"); firstTry = false; Sfx.bad(); return; }
       done = true;
       b.classList.add(ok ? "ok" : "ko");
-      $("kf-choices").querySelectorAll(".choice").forEach(x => {
+      $("kf-choices").classList.add("locked");
+      $("kf-choices").querySelectorAll(".opt").forEach(x => {
         if (x !== b) x.classList.add(x.dataset.k === c.ch ? "ok" : "dim");
       });
       const rt = Parse.readingType(c.ch, c.reading);
       const tag = rt ? (rt.type === "on" ? "音 " + App.t("wp_on") : "訓 " + App.t("wp_kun")) : "";
       const note = rt && rt.note ? `<br>${esc(rt.note[lang])}` : "";
-      const why = `<div class="why"><div class="why-t">${esc(c.ch)} — ${esc(info[lang])} ${esc(tag)}</div>
+      const why = `<div class="fb-expl"><b>${esc(c.ch)} — ${esc(info[lang])} ${esc(tag)}</b><br>
         ${esc(App.t("kanjifill_why").replace("{w}", parsed.toks[c.tokIdx].surfK)
           .replace("{r}", c.reading))}${note}</div>`;
       tts(parsed);
@@ -484,23 +506,26 @@ const Session = (() => {
     const choices = distract.concat([answer]).sort(() => Math.random() - 0.5);
     const fLabel = formPrompt(to, g, answer.r);
     $("sess-body").innerHTML = `${kindLine("transform")}
-      <div class="lesson"><div class="les-pat">${show(base)} →&nbsp;?</div>
-      <div class="les-name">${esc(fLabel)}</div></div>
-      <div class="choices" id="tr-choices">${choices.map((cc, i) =>
-        `<button class="choice" data-i="${i}">${show(cc)}</button>`).join("")}</div>`;
+      <div class="stem">
+        <div class="jp">${show(base)} →&nbsp;<span class="blank">?</span></div>
+        <div class="fr">${esc(fLabel)}</div>
+      </div>
+      <div class="opts grid" id="tr-choices">${choices.map((cc, i) =>
+        `<button class="opt" data-i="${i}">${show(cc)}</button>`).join("")}</div>`;
     foot("");
     let done = false;
-    $("tr-choices").querySelectorAll(".choice").forEach(b => b.addEventListener("click", () => {
+    $("tr-choices").querySelectorAll(".opt").forEach(b => b.addEventListener("click", () => {
       if (done) return;
       const ok = choices[+b.dataset.i].r === answer.r;
       if (!ok && !isExam()) { b.classList.add("ko"); firstTry = false; Sfx.bad(); return; }
       done = true;
       b.classList.add(ok ? "ok" : "ko");
-      $("tr-choices").querySelectorAll(".choice").forEach(x => {
+      $("tr-choices").classList.add("locked");
+      $("tr-choices").querySelectorAll(".opt").forEach(x => {
         if (x !== b && choices[+x.dataset.i].r === answer.r) x.classList.add("ok");
         else if (x !== b) x.classList.add("dim");
       });
-      const why = `<div class="why"><div class="why-t">${esc(g.pat)}</div>${esc(g.expl[lang])}</div>`;
+      const why = `<div class="fb-expl"><b>${esc(g.pat)}</b><br>${esc(g.expl[lang])}</div>`;
       tts(parsed);
       feedback(ok && firstTry, parsed, item.gp, why);
     }));
@@ -515,15 +540,17 @@ const Session = (() => {
     const lang = App.lang();
     let tries = 0;
     $("sess-body").innerHTML = `${kindLine("speak")}
-      <div id="s-jp"></div>
-      <div class="translation">${esc(sent[lang])}</div>
-      <button class="mic-btn" id="s-mic">🎤</button>
-      <div class="mic-hint" id="s-hint">${esc(App.t("speak_tap"))}</div>
+      <div class="stem"><div class="jp" id="s-jp"></div>
+        <div class="fr">${esc(sent[lang])}</div></div>
+      <div class="ans-bar" style="justify-content:center">
+        <button class="mic-btn" id="s-mic" style="width:82px;height:82px;border-radius:50%;font-size:27px">🎤</button>
+      </div>
+      <div class="ans-hint" id="s-hint">${esc(App.t("speak_tap"))}</div>
       <div class="heard" id="s-heard"></div>`;
-    $("s-jp").innerHTML = jpHtml(parsed);
+    $("s-jp").innerHTML = jpHtml(parsed, { plain: true });
     bindTaps($("sess-body"), parsed, item.gp);
-    foot(`<button class="btn ghost" id="s-replay">🔊 ${esc(App.t("replay"))}</button>
-          <button class="btn ghost" id="s-skip">${esc(App.t("skip"))}</button>`);
+    foot(`<button class="btn-ghost" id="s-replay">🔊 ${esc(App.t("replay"))}</button>
+          <button class="btn-ghost" id="s-skip" style="margin-top:9px">${esc(App.t("skip"))}</button>`);
     $("s-replay").addEventListener("click", () => tts(parsed, 0.8));
     $("s-skip").addEventListener("click", () => { Voice.cancel(); feedback(false, parsed, item.gp); });
     const mic = $("s-mic"), hint = $("s-hint"), heard = $("s-heard");
@@ -548,7 +575,7 @@ const Session = (() => {
           if (!best) return;
           curBad = best.g.bad;
           // show WHERE it slipped, whether or not the attempt passed
-          $("s-jp").innerHTML = jpHtml(parsed, { bad: curBad });
+          $("s-jp").innerHTML = jpHtml(parsed, { bad: curBad, plain: true });
           bindTaps($("s-jp"), parsed, item.gp);
           if (best.g.ok) { finished = true; feedback(firstTry, parsed, item.gp); }
           else {
@@ -588,17 +615,15 @@ const Session = (() => {
      * must accept either — see ALT_WORDS in data/lexicon.js. */
     const alts = parsed ? Parse.altReadings(parsed) : [];
     return {
-      html: `<div class="ans-wrap">
-        <div class="ans-bar">
+      html: `<div class="ans-bar">
           <input class="ans-inp" id="a-inp" type="text" inputmode="latin"
                  autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
                  placeholder="${esc(App.t("ans_placeholder"))}">
-          ${canSpeak ? `<button class="mic-btn small" id="a-mic">🎤</button>` : ""}
+          ${canSpeak ? `<button class="mic-btn" id="a-mic">🎤</button>` : ""}
         </div>
         <div class="ans-kana" id="a-kana"></div>
-        <div class="mic-hint" id="a-hint">${esc(canSpeak ? App.t("ans_hint_both") : App.t("ans_hint_type"))}</div>
-        <div class="heard" id="a-heard"></div>
-      </div>`,
+        <div class="ans-hint" id="a-hint">${esc(canSpeak ? App.t("ans_hint_both") : App.t("ans_hint_type"))}</div>
+        <div class="heard" id="a-heard"></div>`,
       bind(bo) {
         o = Object.assign({}, o, bo || {});
         const inp = $("a-inp"), kana = $("a-kana"), hint = $("a-hint"), heard = $("a-heard");
@@ -690,14 +715,14 @@ const Session = (() => {
     const others = Engine.listenChoices(sent, 4);
     const options = [sent, ...others].sort(() => Math.random() - 0.5);
     $("sess-body").innerHTML = `${kindLine("listen")}
-      <div class="listen-hint">${esc(App.t("listen_q"))}</div>
-      <button class="audio-big" id="l-play">🔊</button>
-      <div class="opt-list" id="l-opts">${options.map((s, n) =>
+      <button class="audio-big" id="l-play"><span class="ring"></span><span>🔊</span></button>
+      <div class="audio-hint">${esc(App.t("listen_q"))}</div>
+      <div class="opts" id="l-opts">${options.map((s, n) =>
         `<button class="opt" data-n="${n}">${esc(s[lang])}</button>`).join("")}</div>`;
     const play = (rate) => tts(parsed, rate);
     $("l-play").addEventListener("click", () => play());
     setTimeout(() => play(), 450);
-    foot(`<button class="btn ghost" id="l-slow">🐢 ${esc(App.t("replay"))}</button>`);
+    foot(`<button class="btn-ghost" id="l-slow">🐢 ${esc(App.t("replay"))}</button>`);
     $("l-slow").addEventListener("click", () => play(0.6));
     $("l-opts").querySelectorAll(".opt").forEach(b => b.addEventListener("click", () => {
       if ($("l-opts").classList.contains("locked")) return;
@@ -720,12 +745,18 @@ const Session = (() => {
     curCtx = { mode: "produce" };
     const lang = App.lang();
     const panel = answerPanel({ k: parsed.surfK, r: parsed.surfR }, parsed, graded);
+    /* The design's meta line names the pattern being practised. On a PRODUCTION
+     * card that pattern is made of the very kana the answer needs — 〜たいです
+     * for 「京都に行きたいです」, AはBです for 「わたしは学生です」 — so naming it
+     * hands over the shape of the answer. Same trap the transform prompts fell
+     * into in v1.1.2. The instruction ships; the pattern does not. */
     $("sess-body").innerHTML = `${kindLine("produce")}
       <div class="prod-fr">${esc(sent[lang])}</div>
+      <div class="prod-meta">${esc(App.t("prod_meta"))}</div>
       ${panel.html}`;
     const api = panel.bind();
-    foot(`<button class="btn ghost" id="p-skip">${esc(App.t("skip"))}</button>
-          <button class="btn big primary" id="a-check" disabled>${esc(App.t("check"))}</button>`);
+    foot(`<button class="btn-primary sm" id="a-check" disabled>${esc(App.t("check"))}</button>
+          <button class="btn-ghost" id="p-skip" style="margin-top:9px">${esc(App.t("skip"))}</button>`);
     $("a-check").addEventListener("click", api.submitTyped);
     $("p-skip").addEventListener("click", () => { Voice.cancel(); feedback(false, parsed, item.gp); });
     function graded(r) {
@@ -761,14 +792,12 @@ const Session = (() => {
     const skList = w.sk ? (Array.isArray(w.sk) ? w.sk : [w.sk]) : [];
     const panel = answerPanel({ k: w.k || w.r, r: w.r, sk: skList }, null, graded);
     $("sess-body").innerHTML = `${kindLine("vocab")}
-      <div class="vocab-card">
-        <div class="vocab-fr">${esc(w[lang])}</div>
-        <div class="vocab-pos">${esc(App.t("pos_" + w.pos) !== "pos_" + w.pos ? App.t("pos_" + w.pos) : "")}</div>
-      </div>
+      <div class="prod-fr">${esc(w[lang])}</div>
+      <div class="prod-meta">${esc(App.t("pos_" + w.pos) !== "pos_" + w.pos ? App.t("pos_" + w.pos) : "")} · ${esc(App.t("prod_meta"))}</div>
       ${panel.html}`;
     const api = panel.bind();
-    foot(`<button class="btn ghost" id="v-skip">${esc(App.t("skip"))}</button>
-          <button class="btn big primary" id="a-check" disabled>${esc(App.t("check"))}</button>`);
+    foot(`<button class="btn-primary sm" id="a-check" disabled>${esc(App.t("check"))}</button>
+          <button class="btn-ghost" id="v-skip" style="margin-top:9px">${esc(App.t("skip"))}</button>`);
     $("a-check").addEventListener("click", api.submitTyped);
     $("v-skip").addEventListener("click", () => { Voice.cancel(); feedback(false, parsed, item.gp); });
     function graded(r) {
@@ -789,28 +818,25 @@ const Session = (() => {
   function transcript(dlg, upTo, opts) {
     const o = opts || {};
     const lang = App.lang();
-    return `<div class="dlg-lines">` + dlg.lines.slice(0, upTo).map((l, n) => {
-      const p = Parse.sentence(l.dsl);
-      return `<div class="dlg-line ${l.sp === "A" ? "a" : "b"}">
-        <div class="dlg-who">${esc(l.sp)}</div>
-        <div class="dlg-bubble">
-          <div class="dlg-jp" data-n="${n}"></div>
-          ${o.tr ? `<div class="dlg-fr">${esc(l[lang])}</div>` : ""}
-        </div></div>`;
-    }).join("") + `</div>`;
+    return `<div class="transcript">` + dlg.lines.slice(0, upTo).map((l, n) =>
+      `<div class="tr-line ${l.sp === "B" ? "out" : ""}">
+        <div class="tr-jp dlg-jp" data-n="${n}"></div>
+        ${o.tr ? `<div class="tr-fr">${esc(l[lang])}</div>` : ""}
+      </div>`).join("") + `</div>`;
   }
   function fillTranscript(root, dlg, upTo) {
     root.querySelectorAll(".dlg-jp").forEach(el => {
       const l = dlg.lines[+el.dataset.n];
       const p = Parse.sentence(l.dsl);
-      el.innerHTML = jpHtml(p);
+      el.innerHTML = jpHtml(p, { plain: true });
       bindTaps(el, p, dlg.gp);
     });
   }
   const speakLine = (l, rate) => Voice.speak(Parse.sentence(l.dsl).surfK + "。", rate);
 
   function dlgHead(dlg) {
-    return `<div class="dlg-where">${esc(dlg.where[App.lang()])}</div>`;
+    return `<div class="dlg-where audio-hint" style="margin-top:4px"
+      >${esc(dlg.where[App.lang()])}</div>`;
   }
 
   /* ---------- reply: what does he say next? ---------- */
@@ -826,16 +852,16 @@ const Session = (() => {
     $("sess-body").innerHTML = `${kindLine("reply")}
       ${dlgHead(dlg)}
       ${transcript(dlg, li, { tr: true })}
-      <div class="dlg-next">${esc(App.t("reply_q").replace("{s}", right.sp))}</div>
-      <div class="opt-list" id="r-opts">${options.map((l, n) =>
+      <div class="prod-meta" style="margin-top:14px">${esc(App.t("reply_q").replace("{s}", right.sp))}</div>
+      <div class="opts" id="r-opts">${options.map((l, n) =>
         `<button class="opt" data-n="${n}"><span class="opt-jp" data-p="${n}"></span></button>`).join("")}</div>`;
     fillTranscript($("sess-body"), dlg, li);
     // the options are rendered as Japanese, so this is real reading, not
     // translation-matching
     $("r-opts").querySelectorAll(".opt-jp").forEach(el => {
-      el.innerHTML = jpHtml(Parse.sentence(options[+el.dataset.p].dsl));
+      el.innerHTML = jpHtml(Parse.sentence(options[+el.dataset.p].dsl), { plain: true });
     });
-    foot(`<button class="btn ghost" id="r-play">🔊 ${esc(App.t("replay"))}</button>`);
+    foot(`<button class="btn-ghost" id="r-play">🔊 ${esc(App.t("replay"))}</button>`);
     $("r-play").addEventListener("click", () => {
       // replay the exchange so far, one line after another
       let n = 0;
@@ -852,7 +878,7 @@ const Session = (() => {
         if (options[n] === right) x.classList.add("right");
       });
       setTimeout(() => feedback(ok && firstTry, parsed, item.gp,
-        `<div class="why"><div class="why-t">💡</div>${esc(dlg.note[lang])}</div>`), ok ? 350 : 900);
+        `<div class="fb-expl">💡 ${esc(dlg.note[lang])}</div>`), ok ? 350 : 900);
     }));
   }
 
@@ -869,15 +895,13 @@ const Session = (() => {
     $("sess-body").innerHTML = `${kindLine("roleplay")}
       ${dlgHead(dlg)}
       ${transcript(dlg, li, { tr: true })}
-      <div class="dlg-yours">
-        <div class="dlg-yours-l">${esc(App.t("roleplay_you").replace("{s}", mine.sp))}</div>
-        <div class="prod-fr">${esc(mine[lang])}</div>
-      </div>
+      <div class="prod-fr" style="margin-top:16px;font-size:22px">${esc(mine[lang])}</div>
+      <div class="prod-meta">${esc(App.t("roleplay_you").replace("{s}", mine.sp))}</div>
       ${panel.html}`;
     fillTranscript($("sess-body"), dlg, li);
     const api = panel.bind({ noFocus: true });
-    foot(`<button class="btn ghost" id="rp-skip">${esc(App.t("skip"))}</button>
-          <button class="btn big primary" id="a-check" disabled>${esc(App.t("check"))}</button>`);
+    foot(`<button class="btn-primary sm" id="a-check" disabled>${esc(App.t("check"))}</button>
+          <button class="btn-ghost" id="rp-skip" style="margin-top:9px">${esc(App.t("skip"))}</button>`);
     $("a-check").addEventListener("click", api.submitTyped);
     $("rp-skip").addEventListener("click", () => { Voice.cancel(); done(false, ""); });
     setTimeout(() => { if (li > 0) speakLine(dlg.lines[li - 1]); }, 400);
@@ -888,7 +912,7 @@ const Session = (() => {
       if (!ok) firstTry = false;
       feedback(ok && firstTry, parsed, item.gp,
         (typed ? `<div class="fb-expl">${esc(App.t("ans_you_typed"))} ${esc(typed)}</div>` : "") + altLine(r) +
-        `<div class="why"><div class="why-t">💡</div>${esc(dlg.note[lang])}</div>`);
+        `<div class="fb-expl">💡 ${esc(dlg.note[lang])}</div>`);
     }
   }
 
@@ -897,6 +921,7 @@ const Session = (() => {
     WordPop.hide();
     firstTry = true; curCtx = null; curBad = [];
     setBar();
+    $("session").scrollTop = 0;
     const it = items[idx];
     curItem = it;
     if (!it) return finish();
@@ -929,7 +954,7 @@ const Session = (() => {
     if (bestCombo > st.bestCombo) { st.bestCombo = bestCombo; Engine.save(); }
     const mastered = events.filter(e => e.kind === "mastered").map(e => {
       const g = GRAMMAR.find(x => x.id === e.gp);
-      return `<div class="res-line">🏅 ${esc(g.pat)} — ${esc(App.t("res_mastered"))}</div>`;
+      return `<div class="res-row"><span>🏅 ${esc(g.pat)}</span><b>${esc(App.t("res_mastered"))}</b></div>`;
     }).join("");
     const streak = Engine.streak();
     if (opts.debut) Engine.clearNewKanji();
@@ -937,16 +962,39 @@ const Session = (() => {
      * we ask whether the day's three just landed */
     Engine.noteSession();
     const missionsWon = Engine.missionsJustFinished();
-    $("sess-body").innerHTML = `<div class="result">
-      <div class="res-big">⛩</div>
-      <div class="res-score">${esc(App.t("res_title"))}</div>
-      <div class="res-line">${esc(App.t("res_score").replace("{a}", score).replace("{b}", total))}</div>
-      ${bestCombo >= 2 ? `<div class="res-line res-combo">${esc(App.t("res_combo").replace("{n}", bestCombo))}</div>` : ""}
-      ${mastered}
-      ${streak >= 2 ? `<div class="res-line">🔥 ${esc(App.t("res_streak").replace("{n}", streak))}</div>` : ""}
-      ${missionsWon ? `<div class="res-line res-missions">🎯 ${esc(App.t("missions_done"))}</div>` : ""}
-    </div>`;
-    foot(`<button class="btn big primary" id="res-done">${esc(App.t("cont"))}</button>`);
+    const mis = Engine.missions();
+    const misDone = mis.filter(m => m.done).length;
+
+    /* when the next review actually falls, in plain words */
+    const due = Engine.duePoints();
+    let nextTxt = App.t("next_today");
+    if (!due.length) {
+      const soon = GRAMMAR.map(g => Engine.point(g.id)).filter(p => p.enc > 0)
+        .map(p => p.due).filter(d => d > Date.now()).sort((x, y) => x - y)[0];
+      if (soon) {
+        const days = Math.max(1, Math.round((soon - Date.now()) / 86400000));
+        nextTxt = App.t("next_in_days").replace("{n}", days);
+      } else nextTxt = "—";
+    }
+
+    $("sess-kind").textContent = App.t("kind_result");
+    $("sess-body").innerHTML = `
+      <div class="res-score">${score}<small>/${total}</small></div>
+      <div class="res-line">${esc(score * 2 >= total * 1.5
+        ? App.t("res_good") : App.t("res_again"))}</div>
+      <div class="res-card">
+        <div class="res-row"><span>${esc(App.t("res_best_combo"))}</span
+          ><b class="accent">×${bestCombo}</b></div>
+        <div class="res-row"><span>${esc(App.t("missions_title"))}</span
+          ><b>${misDone}/${mis.length}</b></div>
+        <div class="res-row"><span>${esc(App.t("next_review"))}</span><b>${esc(nextTxt)}</b></div>
+        ${streak >= 2 ? `<div class="res-row"><span>🔥 ${esc(App.t("res_streak_l"))}</span
+          ><b>${streak}</b></div>` : ""}
+        ${mastered}
+        ${missionsWon ? `<div class="res-row"><span>🎯 ${esc(App.t("missions_done"))}</span
+          ><b class="accent">✓</b></div>` : ""}
+      </div>`;
+    foot(`<button class="btn-primary finish" id="res-done">${esc(App.t("res_back"))}</button>`);
     $("res-done").addEventListener("click", close);
   }
 
@@ -970,8 +1018,12 @@ const Session = (() => {
     if (!items.length) return;
     idx = 0; combo = 0; bestCombo = 0; score = 0; total = 0; events = []; results = [];
     $("combo").hidden = true;
+    $("sess-kind").textContent = "";
     $("session").hidden = false;
-    document.getElementById("nav").style.display = "none";
+    /* Only the landscape belongs behind the scrim. The app's own screens would
+       otherwise read straight through it and collide with the exercise. */
+    document.getElementById("app").hidden = true;
+    document.getElementById("nav").hidden = true;
     render();
   }
 
@@ -1007,19 +1059,20 @@ const Session = (() => {
   function exam(arcId) {
     const list = Exam.build(arcId);
     if (!list.length) return;
-    start(list, { exam: { arc: arcId }, back: "map" });
+    start(list, { exam: { arc: arcId }, back: "journey" });
   }
 
   function close() {
     Voice.stop(); Voice.cancel();
     $("session").hidden = true;
-    document.getElementById("nav").style.display = "";
-    App.renderHome();
-    if (opts.back === "map") { Journey.render(); App.nav("map"); }
-    else if (opts.back === "strengthen") { Strengthen.render(); App.nav("strengthen"); }
-    else if (opts.back === "library") { App.nav("library"); }
-    else Journey.render();
+    document.getElementById("app").hidden = false;
+    document.getElementById("nav").hidden = false;
+    const back = opts.back;
     opts = {};
+    if (back === "journey") App.nav("journey");
+    else if (back === "strengthen") App.nav("strengthen");
+    else if (back === "library") App.nav("library");
+    else App.nav("home");
   }
 
   return { start, practice, strengthen, kanjiDebut, exam, readAloud, close, formPrompt,

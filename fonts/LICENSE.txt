@@ -1,0 +1,10 @@
+Fonts bundled with Kakibun, subsetted to the characters this app can display.
+
+Zen Kaku Gothic New — Copyright 2020 The Zen Kaku Gothic Project Authors
+  (https://github.com/googlefonts/zen-kakugothic)
+Instrument Serif — Copyright 2022 The Instrument Serif Project Authors
+  (https://github.com/Instrument/instrument-serif)
+IBM Plex Mono — Copyright 2017 IBM Corp. (https://github.com/IBM/plex)
+
+All three are licensed under the SIL Open Font License, Version 1.1.
+https://scripts.sil.org/OFL

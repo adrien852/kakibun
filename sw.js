@@ -1,5 +1,5 @@
 /* Kakibun service worker — bump VERSION on every release (and APP_VERSION in js/app.js). */
-const VERSION = "2.3.0";
+const VERSION = "3.0.0";
 const CACHE = "kakibun-" + VERSION;
 
 const PRECACHE = [
@@ -20,6 +20,7 @@ const PRECACHE = [
   "js/kana.js",
   "js/bridge.js",
   "js/season.js",
+  "js/scene.js",
   "js/engine.js",
   "js/sfx.js",
   "js/voice.js",
@@ -31,6 +32,14 @@ const PRECACHE = [
   "js/library.js",
   "js/settings.js",
   "js/app.js",
+  "fonts/zkgn-400.woff2",
+  "fonts/zkgn-500.woff2",
+  "fonts/zkgn-700.woff2",
+  "fonts/zkgn-900.woff2",
+  "fonts/iserif-400i.woff2",
+  "fonts/plexmono-400.woff2",
+  "fonts/plexmono-500.woff2",
+  "fonts/plexmono-600.woff2",
   "icons/icon-192.png",
   "icons/icon-512.png",
   "icons/maskable-192.png",

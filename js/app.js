@@ -1,33 +1,42 @@
-/* Kakibun — app shell: nav, home, i18n, boot. */
-const APP_VERSION = "2.3.0"; // keep in sync with sw.js VERSION
+/* Kakibun — app shell: the landscape, navigation, home, i18n, boot. */
+const APP_VERSION = "3.0.0"; // keep in sync with sw.js VERSION
 const App = (() => {
   const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
   const $ = (id) => document.getElementById(id);
+
+  const SCREENS = ["home", "journey", "strengthen", "library", "settings"];
 
   const lang = () => Engine.state().settings.lang;
   const t = (key) => (I18N[lang()] && I18N[lang()][key] !== undefined) ? I18N[lang()][key] : key;
   const pickOk = () => { const v = t("ok_variants"); return v[Math.floor(Math.random() * v.length)]; };
 
-  /* ---------- navigation ---------- */
+  /* ---------- navigation ----------
+   * The landscape is a fixed sibling and is never touched here: moving between
+   * screens should feel like turning around in one place. */
   function nav(to) {
-    ["home", "map", "strengthen", "library", "settings"].forEach(id => { $(id).hidden = id !== to; });
+    SCREENS.forEach(id => { $(id).hidden = id !== to; });
     document.querySelectorAll(".nav-btn").forEach(b => b.classList.toggle("on", b.dataset.nav === to));
     WordPop.hide();
+    Sfx.tap();
     if (to === "home") renderHome();
-    if (to === "map") Journey.render();
+    if (to === "journey") Journey.render();
     if (to === "strengthen") Strengthen.render();
     if (to === "library") Library.render();
     if (to === "settings") Settings.render();
+    const scr = $(to);
+    if (scr) scr.scrollTop = 0;
   }
 
   function applyLang() {
+    document.documentElement.lang = lang();
     $("nav-home").textContent = t("nav_home");
-    $("nav-map").textContent = t("nav_map");
+    $("nav-journey").textContent = t("nav_map");
     $("nav-strengthen").textContent = t("nav_strengthen");
     $("nav-library").textContent = t("nav_library");
     $("nav-settings").textContent = t("nav_settings");
-    $("map-title").textContent = t("map_title");
+    $("journey-title").textContent = t("map_title");
     $("str-title").textContent = t("str_title");
+    $("str-sub").textContent = t("str_sub");
     $("lib-title").textContent = t("lib_title");
     $("set-title").textContent = t("set_title");
     renderHome();
@@ -37,96 +46,87 @@ const App = (() => {
   function renderHome() {
     const st = Engine.stats();
     const L = lang();
-    const streak = Engine.streak();
-    $("streak-pill").hidden = streak < 2;
-    $("streak-n").textContent = streak;
+    const S = Season.current();
 
-    $("hero-title").textContent = t("hero_hello");
-    $("hero-sub").textContent = t("hero_sub");
+    /* the status row: where you are, in what season, at what hour */
     const cur = st.cur;
-    if (cur < GRAMMAR.length) {
-      const g = GRAMMAR[cur];
-      const arc = ARCS.find(a => a.id === g.arc);
-      $("hero-station").innerHTML = `<span class="st-jp">${esc(arc.jp)}</span> · ${esc(g.pat)}<br>
-        <span style="font-size:.85rem;color:var(--ink2)">${esc(g.name[L])}</span>`;
-    } else {
-      $("hero-station").innerHTML = `<span class="st-jp">🎌</span>`;
-    }
+    const hereArc = cur < GRAMMAR.length
+      ? ARCS.find(a => a.id === GRAMMAR[cur].arc)
+      : ARCS[ARCS.length - 1];
+    $("status-place").textContent = `${S.jp} · ${Season.clock()} · ${hereArc.jp}`;
+    const streak = Engine.streak();
+    $("status-streak").hidden = streak < 2;
+    $("status-streak").textContent = t("streak_days").replace("{n}", streak);
+
+    /* the headline is the season word, and the poetic line names the place */
+    $("head-season").textContent = S.head;
+    $("head-poetic").textContent =
+      Season.poetic(L).replace("Kyoto", hereArc.city[L]).replace("Kyoto", hereArc.city[L])
+      + " — " + t("head_stop").replace("{n}", Math.min(cur + 1, GRAMMAR.length));
+
+    /* the one obvious action */
     const due = Engine.duePoints();
-    $("go-session").textContent = due.length && cur >= GRAMMAR.length ? t("hero_review") : t("hero_start");
-    $("hero-day").textContent = "";
+    const sess = Engine.buildSession();
+    const g = cur < GRAMMAR.length ? GRAMMAR[cur] : null;
+    $("sess-eyebrow").textContent =
+      t("daypart_" + Season.dayPart()) + " · " + t("n_cards").replace("{n}", sess.length);
+    $("sess-pat").textContent = g ? g.pat : "🎌";
+    $("sess-desc").textContent = (g ? g.name[L] : t("j_done"))
+      + (due.length ? " · " + t("n_review").replace("{n}", due.length) : "");
+    $("go-session").textContent = (due.length && cur >= GRAMMAR.length)
+      ? t("hero_review") : t("hero_start");
 
-    $("stat-points").textContent = st.started;
-    $("stat-mastered").textContent = st.solid ? `${st.mastered}·${st.solid}🎖` : st.mastered;
-    $("stat-sentences").textContent = st.unlockedSent;
-    $("stat-kanji").textContent = Bridge.hasInfo() ? Bridge.learnedCount() : "—";
-    $("stat-points-l").textContent = t("stat_points");
-    $("stat-mastered-l").textContent = t("stat_mastered");
-    $("stat-sentences-l").textContent = t("stat_sentences");
-    $("stat-kanji-l").textContent = t("stat_kanji");
-
-    // today's three missions
+    /* today's three missions */
     const mis = Engine.missions();
     const misCard = $("missions-card");
+    misCard.hidden = !mis.length;
     if (mis.length) {
-      misCard.hidden = false;
-      const allDone = mis.every(m => m.done);
-      misCard.classList.toggle("all-done", allDone);
-      $("missions-title").textContent = allDone ? t("missions_done") : t("missions_title");
+      const done = mis.filter(m => m.done).length;
+      $("missions-title").textContent = t("missions_title");
+      $("missions-count").textContent = done + "/" + mis.length;
       $("missions-list").innerHTML = mis.map(m => {
-        const pct = Math.round(m.n / m.target * 100);
-        return `<div class="mis ${m.done ? "mis-done" : ""}">
-          <div class="mis-ico">${m.done ? "✅" : t("mission_ico_" + m.id)}</div>
-          <div class="mis-main">
-            <div class="mis-txt">${esc(t("mission_" + m.id).replace("{n}", m.target))}</div>
-            <div class="mis-bar"><i style="width:${pct}%"></i></div>
-          </div>
-          <div class="mis-n">${m.n}/${m.target}</div></div>`;
+        // a mission that has just started still shows a sliver, so the row
+        // reads as "begun" rather than "broken"
+        const pct = m.n === 0 ? 5 : Math.round(m.n / m.target * 100);
+        const col = m.done ? "var(--ok)" : "var(--accent)";
+        return `<div><div class="mis-top">
+            <span class="mis-label">${esc(t("mission_" + m.id).replace("{n}", m.target))}</span>
+            <span class="eyebrow-n">${m.n}/${m.target}</span></div>
+          <div class="mis-track"><i style="width:${pct}%;background:${col}"></i></div></div>`;
       }).join("");
-    } else misCard.hidden = true;
+    }
 
-    // due list
-    const dueCard = $("due-card");
-    if (due.length) {
-      dueCard.hidden = false;
-      $("due-title").textContent = t("due_title");
-      $("due-list").innerHTML = due.slice(0, 6).map(g =>
-        `<div class="due-row" data-gp="${g.id}"><div class="due-jp">${esc(g.pat)}</div>
-        <div class="due-name">${esc(g.name[L])}</div><div>›</div></div>`).join("");
-      $("due-list").querySelectorAll(".due-row").forEach(el =>
-        el.addEventListener("click", () => Session.practice(el.dataset.gp)));
-    } else dueCard.hidden = true;
+    /* three ways further in */
+    $("stat-stops").innerHTML = `${cur}<small>/${GRAMMAR.length}</small>`;
+    $("stat-stops-l").textContent = t("stat_stops");
+    const weak = Engine.weakestPoints(40).filter(w => w.acc !== null && w.acc < 0.75).length;
+    $("stat-weak").textContent = weak;
+    $("stat-weak-l").textContent = t("stat_weak");
+    $("stat-kanji").textContent = Bridge.hasInfo() ? Bridge.learnedCount() : Engine.learnedKanjiPool(true).length;
+    $("stat-kanji-l").textContent = t("stat_kanji");
 
-    // new kanji arrived from Kakikana → offer to practise them in known grammar
+    /* new kanji arrived from Kakikana → offer to practise them in known grammar */
     const nk = Engine.newKanji();
     const nkCard = $("newkanji-card");
+    nkCard.hidden = !nk.length;
     if (nk.length) {
       const lit = Engine.sentencesWith(nk, true).length;
-      nkCard.hidden = false;
       $("newkanji-title").textContent = t("newkanji_title");
       $("newkanji-chars").textContent = nk.slice(0, 12).join(" ");
-      // Nothing to drill yet if these kanji only appear in grammar he hasn't
-      // reached — say so plainly instead of offering an empty session.
-      $("newkanji-body").textContent = lit
-        ? t("newkanji_body").replace("{n}", lit)
-        : t("newkanji_soon");
-      $("newkanji-go").textContent = t("newkanji_go");
+      // nothing to drill yet if these kanji only appear in grammar he hasn't
+      // reached — say so plainly instead of offering an empty session
+      $("newkanji-body").textContent = lit ? t("newkanji_body").replace("{n}", lit) : t("newkanji_soon");
       $("newkanji-go").hidden = lit === 0;
+      $("newkanji-go").textContent = t("newkanji_go");
       $("newkanji-later").textContent = lit ? t("newkanji_later") : t("newkanji_ok");
-    } else nkCard.hidden = true;
+    }
 
-    // Kakikana banner
+    /* the Kakikana link, only while it is missing */
     const banner = $("kakikana-banner");
-    if (Bridge.hasInfo()) {
-      banner.hidden = false;
-      $("kakikana-banner-txt").textContent = t("banner_linked").replace("{n}", Bridge.learnedCount());
-      $("kakikana-import-btn").hidden = true;
-    } else {
-      banner.hidden = false;
+    banner.hidden = Bridge.hasInfo();
+    if (!Bridge.hasInfo()) {
       $("kakikana-banner-txt").textContent = t("banner_no_kakikana");
-      const btn = $("kakikana-import-btn");
-      btn.hidden = false;
-      btn.textContent = t("banner_import");
+      $("kakikana-import-btn").textContent = t("banner_import");
     }
   }
 
@@ -146,7 +146,7 @@ const App = (() => {
     setTimeout(() => el.remove(), 2300);
   }
 
-  /* ---------- import ---------- */
+  /* ---------- import / backup ---------- */
   function handleImportFile(file) {
     const reader = new FileReader();
     reader.onload = () => {
@@ -162,11 +162,9 @@ const App = (() => {
     reader.readAsText(file);
   }
 
-  /* ---------- backup ---------- */
   function exportSave() {
     try {
-      const blob = new Blob([JSON.stringify(Engine.exportSave(), null, 1)],
-                            { type: "application/json" });
+      const blob = new Blob([JSON.stringify(Engine.exportSave(), null, 1)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -200,9 +198,10 @@ const App = (() => {
     Engine.load();
     Bridge.load(Engine.state());
     Engine.save();
-    Season.apply();
+    Scene.start();                       // sky, light, hills, particles
     applyLang();
-    document.querySelectorAll(".nav-btn").forEach(b =>
+
+    document.querySelectorAll("[data-nav]").forEach(b =>
       b.addEventListener("click", () => nav(b.dataset.nav)));
     $("go-session").addEventListener("click", () => Session.start());
     $("sess-quit").addEventListener("click", Session.close);
@@ -222,25 +221,24 @@ const App = (() => {
     // app is merely backgrounded — re-read whenever we come back to the front.
     const recheck = () => {
       if (document.hidden) return;
-      Season.apply();   // a PWA left open can cross a month boundary
       const r = Bridge.refresh(Engine.state());
       if (r.changed) {
         Engine.save();
         if (r.fresh.length) toast(t("import_ok").replace("{n}", Bridge.learnedCount()));
         if ($("session").hidden) renderHome();
+      } else if ($("session").hidden && !$("home").hidden) {
+        renderHome();                    // the clock in the status pill moves on
       }
     };
     document.addEventListener("visibilitychange", recheck);
     window.addEventListener("focus", recheck);
 
     renderHome();
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("sw.js").catch(() => {});
-    }
+    if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
   }
 
   document.addEventListener("DOMContentLoaded", boot);
 
   return { t, lang, pickOk, nav, renderHome, applyLang, toast, toastMaster,
-           exportSave, VERSION: APP_VERSION };
+           exportSave, esc, VERSION: APP_VERSION };
 })();
