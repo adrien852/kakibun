@@ -1,5 +1,5 @@
 /* Kakibun service worker — bump VERSION on every release (and APP_VERSION in js/app.js). */
-const VERSION = "3.1.0";
+const VERSION = "3.2.0";
 const CACHE = "kakibun-" + VERSION;
 
 const PRECACHE = [

@@ -631,4 +631,119 @@ S("g100",2,"ashita mata kuru","Je reviens demain. (familier)","I'll come again t
 S("g100",2,"kono keeki は=top oishii ね=agree","Ce gâteau est bon, hein ! (familier)","This cake is good, eh! (casual)");
 S("g100",3,"ima uchi に=exist iru","Je suis à la maison, là. (familier)","I'm home now. (casual)");
 
+/* ============================================================================
+ * APPENDIX — kanji the carnet listed but the corpus never wrote (v3.2.0)
+ *
+ * Twenty-six of the 111 kanji in the library grid appeared in no sentence at
+ * all, so their lens opened on "0 phrases" and neither 読み nor 漢字-fill could
+ * ever ask about them. These sentences close that gap.
+ *
+ * WHY THEY ARE DOWN HERE AND NOT BESIDE THEIR OWN GRAMMAR POINT:
+ * a sentence's index IS its identity — notes.js is keyed by it and the save's
+ * sentSeen map is keyed by it. Inserting one in the middle would renumber every
+ * sentence after it and silently rewrite what the learner has already seen.
+ * The engine reaches sentences through sentencesFor(gp), which filters rather
+ * than slices, so file position is irrelevant to it. Order here is by grammar
+ * point, so this block still reads in journey order.
+ * ========================================================================== */
+
+/* --- 東京 --- */
+// g06 AのB
+S("g06",2,"tanaka の=poss kuni は=top nihon です","Le pays de M. Tanaka, c'est le Japon.","Mr Tanaka's country is Japan.");
+// g14 どこですか
+S("g14",1,"anata の=poss kuni は=top doko です か=q","De quel pays viens-tu ?","What country are you from?");
+
+/* --- 横浜 --- */
+// g17 いくらですか
+S("g17",2,"kono kaban は=top ichiman-en です","Ce sac coûte 10 000 yens.","This bag costs 10,000 yen.");
+S("g17",3,"sono tokei は=top ichiman-en です か=q","Cette montre coûte-t-elle 10 000 yens ?","Does that watch cost 10,000 yen?");
+// g18 何時ですか
+S("g18",1,"ima rokuji です","Il est six heures.","It is six o'clock.");
+S("g18",2,"gozen hachiji です","Il est huit heures du matin.","It is eight in the morning.");
+// g19 何曜日ですか
+S("g19",2,"mokuyoubi は=top yasumi です","Le jeudi, c'est congé.","Thursday is a day off.");
+S("g19",3,"raishuu の=poss mokuyoubi は=top tanjoubi です","Jeudi prochain, c'est mon anniversaire.","Next Thursday is my birthday.");
+
+/* --- 鎌倉 --- */
+// g21 ～がいます
+S("g21",1,"otokonohito が=subj iru.masu","Il y a un homme.","There is a man.");
+S("g21",2,"onnanohito が=subj iru.masu か=q","Y a-t-il une femme ?","Is there a woman?");
+// g22 場所に～があります
+S("g22",1,"soto に=exist inu が=subj iru.masu","Il y a un chien dehors.","There is a dog outside.");
+S("g22",2,"kyouto に=exist kawa が=subj aru.masu","Il y a une rivière à Kyoto.","There is a river in Kyoto.");
+S("g22",3,"machi の=poss higashi に=exist yama が=subj aru.masu","À l'est de la ville, il y a une montagne.","There is a mountain east of the town.");
+// g23 上・下・中・前・後ろ
+S("g23",1,"eki の=poss migi に=exist ginkou が=subj aru.masu","Il y a une banque à droite de la gare.","There is a bank to the right of the station.");
+S("g23",2,"mise の=poss hidari に=exist kouen が=subj aru.masu","Il y a un parc à gauche du magasin.","There is a park to the left of the shop.");
+S("g23",2,"gakkou の=poss soto に=exist gakusei が=subj iru.masu","Il y a des étudiants à l'extérieur de l'école.","There are students outside the school.");
+S("g23",3,"gakkou の=poss nishi に=exist hoteru が=subj aru.masu","Il y a un hôtel à l'ouest de l'école.","There is a hotel west of the school.");
+S("g23",3,"kouen の=poss minami に=exist kawa が=subj aru.masu","Il y a une rivière au sud du parc.","There is a river south of the park.");
+// g26 一つ・二人・三本…
+S("g26",2,"onnanohito が=subj futari iru.masu","Il y a deux femmes.","There are two women.");
+S("g26",3,"otokonohito が=subj sannin iru.masu","Il y a trois hommes.","There are three men.");
+
+/* --- 富士山 --- */
+// g33 から・まで
+S("g33",3,"nihon は=top kita から=from minami まで=until nagai です","Le Japon est long, du nord au sud.","Japan is long, from north to south.");
+// g36 七時に
+S("g36",1,"rokuji に=time okiru.masu","Je me lève à six heures.","I get up at six.");
+S("g36",2,"hachiji に=time gakkou へ=dir iku.masu","Je vais à l'école à huit heures.","I go to school at eight.");
+
+/* --- 名古屋 --- */
+// g40 ～ました
+S("g40",2,"kyonen nihon に=dest iku.mashita","L'année dernière, je suis allé au Japon.","Last year I went to Japan.");
+// g41 ～ませんでした
+S("g41",2,"kyonen は=top umi に=dest iku.masendeshita","L'année dernière, je ne suis pas allé à la mer.","Last year I didn't go to the sea.");
+// g42 場所で～ます
+S("g42",2,"kawa で=place asobu.mashita","Nous avons joué à la rivière.","We played at the river.");
+
+/* --- 大阪 --- */
+// g59 高いです
+S("g59",1,"sora は=top aoi です","Le ciel est bleu.","The sky is blue.");
+S("g59",1,"me が=subj itai です","J'ai mal aux yeux.","My eyes hurt.");
+S("g59",2,"kono kawa は=top nagai です","Cette rivière est longue.","This river is long.");
+S("g59",2,"kono uchi は=top furui です","Cette maison est vieille.","This house is old.");
+S("g59",2,"kodomo は=top me が=subj ookii です","Les enfants ont de grands yeux.","Children have big eyes.");
+S("g59",3,"kono inu は=top ashi が=subj nagai です","Ce chien a de longues pattes.","This dog has long legs.");
+// g60 高くないです
+S("g60",2,"kono michi は=top nagai.kunai です","Cette route n'est pas longue.","This road is not long.");
+// g61 高かったです
+S("g61",2,"kinou は=top ashi が=subj itai.katta です","Hier, j'avais mal aux jambes.","My legs hurt yesterday.");
+S("g61",3,"sono hoteru は=top furui.katta です","Cet hôtel était vieux.","That hotel was old.");
+// g62 元気です
+S("g62",2,"kyou は=top sora が=subj kirei です","Aujourd'hui, le ciel est beau.","The sky is beautiful today.");
+// g63 大きい犬・元気な人
+S("g63",2,"shiroi hana を=obj kau.mashita","J'ai acheté des fleurs blanches.","I bought white flowers.");
+S("g63",2,"chiisai mise で=place pan を=obj kau.mashita","J'ai acheté du pain dans un petit magasin.","I bought bread at a small shop.");
+S("g63",3,"shiroi kuruma が=obj hoshii です","Je veux une voiture blanche.","I want a white car.");
+// g64 とても・あまり
+S("g64",2,"kyou は=top hito が=subj totemo ooi です","Aujourd'hui, il y a vraiment beaucoup de monde.","There are a lot of people today.");
+S("g64",3,"kono inu は=top mimi が=subj totemo ookii です","Ce chien a de très grandes oreilles.","This dog has very big ears.");
+S("g64",3,"kono machi は=top mise が=subj ooi です","Dans cette ville, les magasins sont nombreux.","This town has a lot of shops.");
+// g65 どうですか・どんな
+S("g65",2,"donna kuni です か=q","C'est quel genre de pays ?","What kind of country is it?");
+
+/* --- 広島 --- */
+// g70 AはBより
+S("g70",2,"kita は=top minami より=than samui です","Le nord est plus froid que le sud.","The north is colder than the south.");
+S("g70",3,"nishi の=poss machi は=top higashi の=poss machi より=than shizuka です","La ville de l'ouest est plus calme que celle de l'est.","The western town is quieter than the eastern one.");
+// g72 ～がいちばん
+S("g72",3,"nihon で=place kita が=subj ichiban samui です","Au Japon, c'est le nord le plus froid.","In Japan, the north is the coldest.");
+// g73 ～は～が、～は～
+S("g73",2,"natsu は=contrast minami へ=dir iku.masu が=but 、 fuyu は=contrast kita へ=dir iku.masu","En été je vais dans le sud, en hiver dans le nord.","In summer I go south, in winter I go north.");
+S("g73",3,"inu は=contrast mimi が=subj ookii です が=but 、 neko は=contrast chiisai です","Le chien a de grandes oreilles, le chat les a petites.","Dogs have big ears, cats have small ones.");
+
+/* --- 福岡 --- */
+// g78 ～てください
+S("g78",1,"kuchi を=obj akeru.te kudasai","Ouvrez la bouche, s'il vous plaît.","Please open your mouth.");
+S("g78",2,"migi を=obj miru.te kudasai","Regardez à droite, s'il vous plaît.","Please look to the right.");
+S("g78",2,"hidari に=dest iku.te kudasai","Allez à gauche, s'il vous plaît.","Please go left.");
+S("g78",3,"koko に=exist tatsu.te kudasai","Tenez-vous ici, s'il vous plaît.","Please stand here.");
+// g80 ～ています (état)
+S("g80",3,"eki の=poss mae に=exist onnanohito が=subj tatsu.teimasu","Une femme est debout devant la gare.","A woman is standing in front of the station.");
+// g81 ～てもいいですか
+S("g81",2,"soto に=dest deru.te ~もいいですか","Puis-je sortir dehors ?","May I go outside?");
+// g83 ～て、～て
+S("g83",3,"kuchi を=obj akeru.te 、 kusuri を=obj nomu.mashita","J'ai ouvert la bouche et j'ai pris le médicament.","I opened my mouth and took the medicine.");
+
 if (typeof module !== "undefined") module.exports = { SENTENCES };

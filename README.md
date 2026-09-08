@@ -427,3 +427,36 @@ actually loaded rather than falling back.
 the screen with evenly-shared tabs and no sideways scroll, the nav has a real gap, every
 city carries its romaji smaller than the kanji beside it, new kanji cross from Kakikana
 with no tap, and a stale import admits it in both places.
+
+## What's in v3.2 — the kanji the carnet promised
+
+The library grid listed 111 kanji. Twenty-six of them appeared in **no sentence at all**:
+the lens opened on "0 phrases", and neither 読み nor 漢字-fill could ever ask about them,
+since both draw their candidates from the corpus. Nothing in the checklist noticed, because
+nothing in the checklist had ever asked.
+
+Twenty-one of the twenty-six already had their word sitting in the lexicon — 六時 八時
+一万円 木曜日 去年 男の人 女の人 目 耳 足 外 左 右 川 国 立つ 小さい 古い 長い 多い 白い —
+and were simply never written into a sentence. Five had no word at all: 口 北 南 西 空.
+Those are now in the lexicon, along with **東 (ひがし)**: the character was already covered
+by 東京, but only ever with its ON reading, so as a word of its own it turns 東 into a
+genuine two-reading candidate for the 読み exercise.
+
+**55 new sentences**, each with its 💡 note, taking the corpus from 502 to **557**. Every
+one of the 26 now has at least two sentences, several have four, and they sit at the
+grammar point where they belong — 右 左 外 西 in the position lesson (g23), the directions
+in から…まで and in the comparison arc, the body parts among the い-adjectives, 一万円 with
+the other prices.
+
+**They are appended at the end of `sentences.js`, not slotted in beside their own grammar
+point, and that is deliberate.** A sentence's index *is* its identity: `notes.js` is keyed
+by it and so is the save's `sentSeen` map. Inserting one in the middle would renumber every
+sentence after it and silently rewrite what the learner has already seen. The engine reaches
+sentences through `sentencesFor(gp)`, which filters rather than slices, so file position is
+irrelevant to it.
+
+`release.js` now **fails** if any kanji in the grid has no sentence, and warns on any that
+rests on a single one (still 四 千 月 火 半 魚 新 — pre-existing, and next on the list).
+`v320.js` checks the app rather than the data: every lens lists its sentences, the six new
+words display in kanji with their reading, the 読み and 漢字-fill exercises can now reach
+the characters they never could, and all 55 sentences render in every mode they qualify for.

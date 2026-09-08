@@ -68,6 +68,7 @@ W("umi",null,"うみ","n","mer","sea");
 W("niwa",null,"にわ","n","jardin","garden");
 W("tokoro",null,"ところ","n","endroit","place");
 W("michi","道","みち","n","route, rue","road; street");
+W("sora","空","そら","n","ciel","sky");
 
 /* ---- position ---- */
 W("ue","上","うえ","n","dessus","top; above");
@@ -79,6 +80,12 @@ W("ushiro","後ろ","うしろ","n","derrière","behind",{kb:["うし"]});
 W("migi","右","みぎ","n","droite","right");
 W("hidari","左","ひだり","n","gauche","left");
 W("chikaku",null,"ちかく","n","à côté, près","nearby");
+/* the four directions. 東 already appears inside 東京 (とう); as a word of its own
+   it carries the kun reading ひがし, which is what makes it worth teaching. */
+W("kita","北","きた","n","nord","north");
+W("minami","南","みなみ","n","sud","south");
+W("higashi","東","ひがし","n","est","east");
+W("nishi","西","にし","n","ouest","west");
 
 /* ---- things ---- */
 W("hon","本","ほん","n","livre","book");
@@ -127,6 +134,7 @@ W("isha",null,"いしゃ","n","médecin","doctor");
 W("kaishain",null,"かいしゃいん","n","employé(e) de bureau","office worker");
 W("me","目","め","n","œil","eye");
 W("te","手","て","n","main","hand");
+W("kuchi","口","くち","n","bouche","mouth");
 W("mimi","耳","みみ","n","oreille","ear");
 W("ashi","足","あし","n","pied, jambe","foot; leg");
 W("atama",null,"あたま","n","tête","head");

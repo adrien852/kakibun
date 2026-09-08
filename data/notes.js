@@ -1236,7 +1236,151 @@ const NOTES = {
 500: { fr: "Pas de だ ici : おいしい se suffit, et le ね fait le reste. Le familier retire, il n'ajoute pas.",
        en: "No だ here: おいしい stands alone and the ね does the rest. Casual speech removes, it doesn't add." },
 501: { fr: "いる, forme du dictionnaire d'います. Vous voilà au bout du voyage : vous savez enlever la politesse, donc la remettre.",
-       en: "いる, the dictionary form of います. And here the journey ends: you can strip the politeness away, which means you can put it back." }
+       en: "いる, the dictionary form of います. And here the journey ends: you can strip the politeness away, which means you can put it back." },
+
+/* ===== APPENDIX — the kanji-coverage sentences (v3.2.0) =====
+ * Same order as the appendix in sentences.js. Many of these notes point at the
+ * character itself, since these sentences exist so that the carnet's kanji lens
+ * has something to show. */
+
+/* g06 AのB */
+502:{ fr: "国 seul se lit くに, mais こく dans 中国 (la Chine) ou 外国 (l'étranger). Un kanji change souvent de lecture selon qu'il est seul ou en composé.",
+      en: "国 on its own reads くに, but こく inside 中国 (China) or 外国 (abroad). A kanji's reading often changes between standing alone and sitting in a compound." },
+/* g14 どこですか */
+503:{ fr: "En vrai, on évite あなた : on demande plutôt お国はどちらですか, ou on emploie le nom de la personne. あなた s'apprend, mais s'utilise peu.",
+      en: "In practice あなた is avoided: お国はどちらですか is the polite way, or you use the person's name. あなた is worth knowing but little used." },
+/* g17 いくらですか */
+504:{ fr: "Le japonais compte par tranches de quatre chiffres : 10 000, c'est 一万 (un « man »), pas « dix mille ». Au-dessus, 100 000 se dit 十万 — dix man.",
+      en: "Japanese counts in groups of four digits: 10,000 is 一万 (one man), not 'ten thousand'. Above it, 100,000 is 十万 — ten man." },
+505:{ fr: "一万 garde son 一, contrairement à 百 (ひゃく) et 千 (せん) qui s'emploient nus. On ne dit jamais ✗まん円 tout seul.",
+      en: "一万 keeps its 一, unlike 百 (ひゃく) and 千 (せん), which stand bare. You never say ✗まん円 on its own." },
+/* g18 何時ですか */
+506:{ fr: "六時 est régulier : ろくじ, comme 二時 にじ et 五時 ごじ. Les seules heures piégeuses sont 四時 よじ, 七時 しちじ et 九時 くじ.",
+      en: "六時 is regular — ろくじ, like 二時 にじ and 五時 ごじ. The only tricky hours are 四時 よじ, 七時 しちじ and 九時 くじ." },
+507:{ fr: "八時 se dit はちじ sans surprise, mais le ち de 八 se transforme devant d'autres sons : 八百 はっぴゃく, 八分 はっぷん. Devant じ, rien ne bouge.",
+      en: "八時 is はちじ, no surprise — but the ち of 八 shifts before other sounds: 八百 はっぴゃく, 八分 はっぷん. Before じ nothing moves." },
+/* g19 何曜日ですか */
+508:{ fr: "木 se lit き quand c'est l'arbre, もく dans 木曜日. Kun tout seul, on en composé : c'est la règle la plus utile pour deviner une lecture.",
+      en: "木 reads き for the tree itself, もく in 木曜日. Kun alone, on in a compound — the most useful rule of thumb for guessing a reading." },
+509:{ fr: "来週の木曜日 : の relie deux repères de temps, « le jeudi de la semaine prochaine ». Le français dit « jeudi prochain », plus court et plus flou.",
+      en: "来週の木曜日: の links two time markers — 'the Thursday of next week'. English says 'next Thursday', shorter and vaguer." },
+/* g21 ～がいます */
+510:{ fr: "男の人 plutôt que 男 tout seul : 男 nu sonne brusque, presque « un mâle ». On ajoute の人 par politesse, exactement comme pour 女の人.",
+      en: "男の人 rather than plain 男: bare 男 sounds blunt, almost 'a male'. Adding の人 is the polite default, just as for 女の人." },
+511:{ fr: "女 se lit おんな seul, mais じょ en composé : 女性 (じょせい) est le mot neutre des formulaires. Et le 人 final se lit ひと, pas にん.",
+      en: "女 reads おんな alone but じょ in compounds: 女性 (じょせい) is the neutral word on forms. The final 人 here reads ひと, not にん." },
+/* g22 場所に～があります */
+512:{ fr: "外 peut se passer de の : 外に = dehors, sans préciser dehors de quoi. Avec の il devient relatif : 家の外 = à l'extérieur de la maison.",
+      en: "外 works on its own: 外に just means outside, with no reference point. With の it turns relative: 家の外 = outside the house." },
+513:{ fr: "川 se lit かわ seul, mais devient がわ à la fin d'un nom : 鴨川 かもがわ, la rivière de Kyoto. Ce voisement en composé s'appelle le rendaku.",
+      en: "川 reads かわ alone but turns into がわ at the end of a name: 鴨川 かもがわ, Kyoto's river. That voicing in compounds is called rendaku." },
+514:{ fr: "東 seul se lit ひがし, mais とう dans 東京 — « la capitale de l'est ». Vous connaissiez déjà ce kanji sans connaître son nom.",
+      en: "東 on its own reads ひがし, but とう in 東京 — 'the eastern capital'. You already knew this kanji without knowing its own name." },
+/* g23 上・下・中・前・後ろ */
+515:{ fr: "右 et 左 se construisent comme 上 ou 中 : un nom, の, puis la position. Le japonais n'a pas de préposition — tout passe par ce の.",
+      en: "右 and 左 build like 上 or 中: a noun, then の, then the position. Japanese has no prepositions — it all runs through that の." },
+516:{ fr: "左 se lit ひだり, mais 左右 ensemble se disent さゆう et signifient « les deux côtés ». Deux kanji connus donnent souvent un mot qu'on ne devine pas.",
+      en: "左 reads ひだり, but 左右 together is さゆう and means 'both sides'. Two familiar kanji often make a word you'd never guess." },
+517:{ fr: "Le même 外 donne 外国 (がいこく), « le pays du dehors », c'est-à-dire l'étranger. Ici il se lit そと ; en composé, がい.",
+      en: "The same 外 gives 外国 (がいこく), 'the outside country' — abroad. Here it reads そと; in compounds, がい." },
+518:{ fr: "西 se lit にし seul et さい dans 関西 (かんさい), la région d'Osaka et de Kyoto — littéralement « à l'ouest de la barrière ».",
+      en: "西 reads にし alone and さい in 関西 (かんさい), the Osaka–Kyoto region — literally 'west of the barrier'." },
+519:{ fr: "Le japonais énumère les points cardinaux dans l'ordre 東西南北 (とうざいなんぼく) : est, ouest, sud, nord. Le français préfère nord-sud-est-ouest.",
+      en: "Japanese lists the compass points as 東西南北 (とうざいなんぼく) — east, west, south, north. English prefers north-south-east-west." },
+/* g26 一つ・二人・三本… */
+520:{ fr: "Le kanji 人 apparaît deux fois et se lit deux fois autrement : ひと dans 女の人, り dans 二人 (ふたり). Le contexte décide, pas le caractère.",
+      en: "人 shows up twice here and reads differently each time: ひと in 女の人, り in 二人 (ふたり). Context decides, not the character." },
+521:{ fr: "男 se lit おとこ seul et だん en composé : 男性 (だんせい) est le mot neutre — celui des formulaires et des portes de toilettes.",
+      en: "男 reads おとこ alone and だん in compounds: 男性 (だんせい) is the neutral word — the one on forms and restroom doors." },
+/* g33 から・まで */
+522:{ fr: "北 se lit きた seul et ほっ dans 北海道 (ほっかいどう), la dernière étape du voyage. Ici から…まで mesure un pays entier, pas un trajet.",
+      en: "北 reads きた alone and ほっ in 北海道 (ほっかいどう), the last stop of the journey. Here から…まで measures a whole country, not a trip." },
+/* g36 七時に */
+523:{ fr: "六 se lit ろく, mais devient ろっ devant certains sons : 六本 ろっぽん, 六分 ろっぷん. Devant じ il reste entier — ろくじ.",
+      en: "六 reads ろく but becomes ろっ before certain sounds: 六本 ろっぽん, 六分 ろっぷん. Before じ it stays whole — ろくじ." },
+524:{ fr: "へ ou に pour la destination : les deux passent. へ insiste un peu plus sur la direction, に sur le point d'arrivée — la nuance est mince.",
+      en: "へ or に for a destination: both work. へ leans on the direction, に on the arrival point — the difference is slight." },
+/* g40 ～ました */
+525:{ fr: "去 veut dire « qui s'en est allé » : 去年, c'est l'année partie. À l'écrit soigné on rencontre aussi 昨年 (さくねん), plus formel.",
+      en: "去 means 'gone by': 去年 is the year that left. In careful writing you'll also meet 昨年 (さくねん), which is more formal." },
+/* g41 ～ませんでした */
+526:{ fr: "去年は avec は, et non nu : le は met l'année dernière en contraste — « l'an dernier au moins, non ». Sans lui, ce serait un simple constat.",
+      en: "去年は with は rather than bare: the は sets last year in contrast — 'last year at any rate, no'. Without it it's a flat statement." },
+/* g42 場所で～ます */
+527:{ fr: "川で et non ✗川に : on joue DANS la rivière, c'est une action. Comparez avec 京都に川があります, où に situe la rivière elle-même.",
+      en: "川で, not ✗川に: playing is an action, so で. Compare 京都に川があります, where に places the river itself." },
+/* g59 高いです */
+528:{ fr: "空 dit à la fois le ciel et le vide : そら pour le ciel, くう dans 空気 (くうき, l'air) et 空港 (くうこう, l'aéroport).",
+      en: "空 means both sky and empty: そら for the sky, くう in 空気 (くうき, air) and 空港 (くうこう, airport)." },
+529:{ fr: "La partie du corps prend が, pas は : 目がいたい. Le japonais fait de ce qui fait mal le sujet, là où le français dit « j'ai mal à… ».",
+      en: "The body part takes が, not は: 目がいたい. Japanese makes the aching part the subject, where English says 'my eyes hurt'." },
+530:{ fr: "長 sert bien au-delà de la longueur : 社長 (しゃちょう) est le patron d'une entreprise, celui qui « est en tête ». Ici, c'est la lecture なが.",
+      en: "長 goes well beyond length: 社長 (しゃちょう) is a company president, the one at the head. Here it takes the なが reading." },
+531:{ fr: "古 en composé donne 中古 (ちゅうこ), « d'occasion » — le mot qu'on lit sur toutes les vitrines de voitures et de livres au Japon.",
+      en: "In compounds 古 gives 中古 (ちゅうこ), 'second-hand' — the word in every used-car and used-book window in Japan." },
+532:{ fr: "Deux marques en cascade : は pose le thème (les enfants), が désigne ce qui est grand (les yeux). Ce moule 「AはBが～」 décrit tout ce qu'on possède.",
+      en: "Two markers in sequence: は sets the topic (children), が names what is big (the eyes). This 「AはBが～」 frame describes anything you possess." },
+533:{ fr: "足 désigne le pied ET la jambe — le japonais ne tranche pas à la cheville comme le français. Le contexte fait le partage.",
+      en: "足 covers both foot and leg — Japanese doesn't cut at the ankle the way English does. Context decides which is meant." },
+/* g60 高くないです */
+534:{ fr: "道 se lit みち seul et どう en composé : 北海道 (ほっかいどう) est « la route de la mer du nord ». Le même kanji clôt le voyage.",
+      en: "道 reads みち alone and どう in compounds: 北海道 (ほっかいどう) is 'the north sea road'. The same kanji closes the journey." },
+/* g61 高かったです */
+535:{ fr: "いたい se conjugue comme n'importe quel adjectif en い : いたかった. Le français passe par un verbe (« j'avais mal »), le japonais par le seul adjectif.",
+      en: "いたい conjugates like any い-adjective: いたかった. English needs a verb ('my legs hurt'), Japanese just inflects the adjective." },
+536:{ fr: "古かった décrit l'état à ce moment-là, pas un changement. Pour « est devenu vieux », il faudra 古くなりました — c'est l'étape 75.",
+      en: "古かった describes how it was then, not a change. For 'became old' you'd need 古くなりました — that's stop 75." },
+/* g62 元気です */
+537:{ fr: "きれい dit aussi bien « beau » que « propre ». Pour un ciel, c'est la clarté : 空がきれい, c'est un ciel dégagé, pas un ciel décoré.",
+      en: "きれい covers both 'beautiful' and 'clean'. For a sky it means clear: 空がきれい is an unclouded sky, not a decorated one." },
+/* g63 大きい犬・元気な人 */
+538:{ fr: "Le 白 de 白い se retrouve dans 面白い (おもしろい, intéressant) — littéralement « le visage qui blanchit », de surprise. Un mot que vous employez déjà.",
+      en: "The 白 of 白い turns up in 面白い (おもしろい, interesting) — literally 'the face turning white' with surprise. A word you already use." },
+539:{ fr: "小 se lit ちい dans 小さい et しょう en composé : 小学校 (しょうがっこう), l'école primaire. Vous connaissez déjà 学校 — il suffit d'ajouter « petit ».",
+      en: "小 reads ちい in 小さい and しょう in compounds: 小学校 (しょうがっこう), primary school. You already know 学校 — just add 'small'." },
+540:{ fr: "ほしい prend が et ne s'emploie que pour des objets, jamais pour des actions — celles-là veulent ～たいです. Et 白い se colle au nom sans な.",
+      en: "ほしい takes が and only ever applies to things, never actions — those take ～たいです. And 白い attaches to the noun with no な." },
+/* g64 とても・あまり */
+541:{ fr: "多い ne se met presque jamais devant un nom : ✗多い人 ne se dit pas. Il reste en fin de phrase — c'est l'exception parmi les adjectifs en い.",
+      en: "多い almost never sits in front of a noun: ✗多い人 doesn't work. It stays at the end of the sentence — the odd one out among い-adjectives." },
+542:{ fr: "耳がいい ne veut pas dire « avoir de belles oreilles » mais « avoir l'oreille fine ». Beaucoup de parties du corps s'emploient ainsi : 目がいい, c'est bien voir.",
+      en: "耳がいい doesn't mean 'nice ears' — it means sharp hearing. Many body parts work this way: 目がいい is good eyesight." },
+543:{ fr: "L'opposé de 多い est 少ない (すくない), et tous deux suivent le même moule 「AはBが～」. Ils décrivent une quantité, jamais une taille.",
+      en: "The opposite of 多い is 少ない (すくない), and both use the same 「AはBが～」 frame. They describe quantity, never size." },
+/* g65 どうですか・どんな */
+544:{ fr: "どんな国 demande le caractère du pays, pas son nom. Pour le nom, ce serait どこの国 — どんな appelle une description.",
+      en: "どんな国 asks what the country is like, not which one it is. For the name you'd say どこの国 — どんな calls for a description." },
+/* g70 AはBより */
+545:{ fr: "Les points cardinaux se comparent comme n'importe quel nom : ils prennent は et より sans rien de particulier. En japonais, ce sont des noms ordinaires.",
+      en: "Compass points compare like any other noun: they take は and より with nothing special. In Japanese they are ordinary nouns." },
+546:{ fr: "Le japonais répète まち des deux côtés là où le français dit « celle de l'est ». Il n'a pas de pronom de reprise — on redit le nom.",
+      en: "Japanese repeats まち on both sides where English says 'the eastern one'. It has no such pronoun — you say the noun again." },
+/* g72 ～がいちばん */
+547:{ fr: "北 seul suffit à désigner « le nord du pays ». Pas besoin de 北の方 ni de 北部 : le point cardinal fait office de région.",
+      en: "北 on its own is enough for 'the north of the country'. No need for 北の方 or 北部: the compass point doubles as a region." },
+/* g73 ～は～が、～は～ */
+548:{ fr: "Deux saisons, deux は, une seule opposition. Le が central relie sans rien nier — il dit « et de l'autre côté », pas « mais » au sens fort.",
+      en: "Two seasons, two は, one opposition. The が in the middle joins without denying — it means 'and on the other hand', not a strong 'but'." },
+549:{ fr: "La seconde moitié ne répète pas 耳が : le contraste porte sur le chien et le chat, le reste est sous-entendu. Le japonais coupe tout ce qui est déjà su.",
+      en: "The second half doesn't repeat 耳が: the contrast is between dog and cat, the rest is understood. Japanese drops whatever is already known." },
+/* g78 ～てください */
+550:{ fr: "口 se lit くち et se retrouve partout dans les gares : 入口 (いりぐち, entrée) et 出口 (でぐち, sortie). Deux mots à repérer avant tout voyage.",
+      en: "口 reads くち and turns up all over stations: 入口 (いりぐち, entrance) and 出口 (でぐち, exit). Two words to spot before any trip." },
+551:{ fr: "右を見る avec を : la direction regardée se traite comme un objet. On dit de même 空を見る, regarder le ciel.",
+      en: "右を見る takes を: the direction you look at is treated as an object. Likewise 空を見る, to look at the sky." },
+552:{ fr: "左に行く se comprend, mais on entend surtout 左に曲がる (まがる), « tourner à gauche » — la phrase exacte que donne un GPS japonais.",
+      en: "左に行く is understood, but what you'll actually hear is 左に曲がる (まがる), 'turn left' — the exact phrase a Japanese satnav uses." },
+553:{ fr: "立 se lit た dans 立つ et りつ en composé : 国立 (こくりつ) veut dire « national », littéralement « établi par l'État ». Vous avez les deux kanji.",
+      en: "立 reads た in 立つ and りつ in compounds: 国立 (こくりつ) means 'national' — literally 'set up by the state'. You now know both kanji." },
+/* g80 ～ています (état) */
+554:{ fr: "立っています décrit une position tenue, pas le geste de se lever. Pour le geste, c'est 立ちます — même verbe, deux moments différents.",
+      en: "立っています describes a position being held, not the act of standing up. For the act it's 立ちます — same verb, two different moments." },
+/* g81 ～てもいいですか */
+555:{ fr: "出る prend に pour la destination et を pour le lieu quitté : 外に出る (sortir dehors) mais 部屋を出る (quitter la pièce). La particule change tout.",
+      en: "出る takes に for where you go and を for what you leave: 外に出る (go outside) but 部屋を出る (leave the room). The particle changes everything." },
+/* g83 ～て、～て */
+556:{ fr: "En japonais on BOIT le médicament, même en comprimé : くすりを飲む. Le verbe 飲む couvre tout ce qui descend sans être mâché.",
+      en: "In Japanese you drink medicine, even a tablet: くすりを飲む. 飲む covers anything that goes down without chewing." }
 
 };
 
