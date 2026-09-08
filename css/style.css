@@ -530,3 +530,56 @@ b,strong{font-weight:700}
 @media (prefers-reduced-motion:reduce){
   .audio-big,.audio-big .ring,.fb,.fb-halo,.toast,.toast-master,#wordpop,.combo.bump{animation:none}
 }
+
+/* ============ 書 — THE MARK ============
+ * The icon itself is inline SVG from js/mark.js (geometry, not type), so
+ * nothing here draws the glyph. These rules only place it and set the wordmark,
+ * which is always lowercase "kakibun" — never caps, never title case. */
+.mk-lock{display:inline-flex;align-items:center;flex:none}
+.mk-lock svg,.mk-sig svg{display:block;flex:none}
+.mk-word{font:700 16px/1 var(--ui);color:#fff;letter-spacing:-.01em;white-space:nowrap}
+.mk-sig{display:inline-flex;align-items:center;gap:14px}
+.mk-sig-t{display:flex;flex-direction:column;gap:8px}
+.mk-tag{font:500 9.5px/1 var(--mono);letter-spacing:.3em}
+
+/* NO IN-APP HEADER. The handoff asks for a glass header carrying the mark and
+ * "秋 · 18:40"; built, it printed the season and the clock twice one line apart,
+ * because the home screen's status pill has said exactly that since v3.0 — and
+ * it cost 60px of the only screen with a horizon worth looking at. The mark
+ * lives on the launch screen and in réglages instead. See README. */
+
+/* the signature on a light plate, for the settings footer */
+.mk-plate{display:inline-flex;align-items:center;gap:11px;background:#f4efe6;
+  border-radius:14px;padding:9px 14px}
+.mk-plate .mk-word{color:#2b1512}
+
+/* ============ LAUNCH SCREEN ============
+ * Same valley as the icon, at screen scale. It is painted from the markup and
+ * torn down by app.js once the first screen has rendered. */
+#launch{position:fixed;inset:0;z-index:60;overflow:hidden;background:var(--lx-sky);
+  display:flex;align-items:center;justify-content:center}
+#launch[hidden]{display:none}
+#launch.gone{opacity:0;pointer-events:none;transition:opacity .32s ease-out}
+.lx-light{position:absolute;left:14%;top:12%;width:34px;height:34px;border-radius:50%;
+  background:var(--lx-light);box-shadow:0 0 52px 18px var(--lx-glow)}
+.lx-ridge{position:absolute;left:50%;transform:translateX(-50%);border-radius:50%}
+.lx-back{width:160%;height:34%;top:66%;background:var(--lx-back)}
+.lx-front{width:150%;height:32%;top:72%;background:var(--lx-front)}
+.lx-stack{position:relative;display:flex;flex-direction:column;align-items:center;gap:16px;
+  padding-bottom:9vh;text-align:center;padding-left:24px;padding-right:24px}
+.lx-glyph svg{display:block}
+.lx-word{font:700 25px/1 var(--ui);color:#fff}
+.lx-poetic{font:400 italic 14px/1.3 var(--serif);color:var(--accent)}
+
+/* entrance — the light rises, then the glyph, then the words */
+.lx-light{animation:lxLight .6s cubic-bezier(.22,.61,.36,1) both}
+.lx-glyph{animation:lxGlyph .42s ease-out .12s both}
+.lx-word{animation:lxFade .4s ease-out .3s both}
+.lx-poetic{animation:lxFade .4s ease-out .42s both}
+@keyframes lxLight{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+@keyframes lxGlyph{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:none}}
+@keyframes lxFade{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion:reduce){
+  .lx-light,.lx-glyph,.lx-word,.lx-poetic{animation:none}
+  #launch.gone{transition:none}
+}

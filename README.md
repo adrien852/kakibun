@@ -460,3 +460,60 @@ rests on a single one (still 四 千 月 火 半 魚 新 — pre-existing, and n
 `v320.js` checks the app rather than the data: every lens lists its sentences, the six new
 words display in kanji with their reading, the 読み and 漢字-fill exercises can now reach
 the characters they never could, and all 55 sentences render in every mode they qualify for.
+
+## What's in v3.3 — 書, the mark
+
+A logo handoff from Claude Design (direction **1a, "Sceau 書"**): the kanji 書 standing on
+the same valley the app itself stands in — a seasonal sky, one point of light, two ridges.
+The glyph and the geometry never change; only the colours follow the season, so the icon on
+the home screen is always in the same season as the app it opens.
+
+**The glyph is geometry, not type.** `js/mark.js` carries 書 in Shippori Mincho ExtraBold
+converted to outlines and normalised into a 1000-unit box. The handoff is explicit that the
+icon must not depend on a webfont, and it buys more than compliance: one path renders
+identically in a 16 px favicon, in an exported store PNG and in the app, with no font to
+load and no fallback face to guess at. **Shippori Mincho is not bundled** — only that path.
+
+**The season comes from one place.** `Mark` reads `Season.key()` and has no month logic of
+its own; `v330.js` greps the file to keep it that way. Four palettes (`Mark.PALETTE`) give
+each season its accent — the app's own, unchanged — plus the icon's sky, two ridge colours
+and its light. The icon's sky is its own single dusk-into-night valley per season, not one
+of the app's sixteen hour-band skies: a launcher icon cannot follow the clock.
+
+**The mark simplifies as it shrinks**, and decides for itself: both ridges above 128 px, one
+ridge to 100, the glow dropped below that, the light dropped below 76, and under 40 px the
+glyph alone on a flat ground at 66 % of the width. `Mark.svg(size)` applies the right tier,
+so the favicon and the store icon come from the same call.
+
+**Where it appears**: the launch screen (painted from `<head>`, before the app boots, so the
+first frame is the mark in today's season rather than an empty valley — with the handoff's
+staged entrance, dropped entirely under `prefers-reduced-motion`), and the signature at the
+foot of *Réglages*. `icons/` holds what the app itself serves — vector master, PWA 192/512,
+maskable 192/512, apple-touch 180, and a `favicon.ico` at 32/16. `brand/` holds the
+deliverable the app never fetches: the iOS set, Android adaptive layers and Play icon, the
+web set, all four seasons at 512, the vector variants (paper, solid ink, outline, maskable)
+and a contact sheet. `release.js` exempts `brand/` from PRECACHE for exactly that reason.
+
+The fonts were re-subset (`文` was missing — the tagline is 書き文 · KYOTO, and it would have
+rendered as tofu). Eight faces, 343 KB. **Re-run the charset walk whenever the corpus grows.**
+
+#### Three departures from the handoff
+- **No in-app header.** The handoff specifies a glass header carrying the mark and
+  `秋 · 18:40`. Built, it printed the season and the clock twice one line apart — the home
+  screen's status pill has said exactly that since v3.0 — and it cost 60 px of the only
+  screen with a horizon worth looking at. Adrien's call, and the right one. The mark earns
+  its place on the launch screen and in Réglages instead.
+- **The glyph is 57.8 % of the icon width, not 29 %.** The README's percentage is `148 ÷ 512`
+  while its pixel values are quoted at 256; the prototype is self-consistent at 57.8 % across
+  all five of its sizes, and the prototype wins.
+- **The optical rise is real here.** The spec asks for the glyph to sit 4.7 % above centre to
+  balance the ridge mass, and gives a reason. Measured, the prototype lands it 0.44 % *below*
+  centre — its `padding-bottom:12px` was cancelled by the font's own ink offset, so the lift
+  it intended never happened and the glyph overlaps the ridge. The spec's intent is followed.
+
+`v330.js` measures all of it: the glyph is a path and the SVG names no font, every season has
+a full palette, the tier boundaries fall exactly where the handoff says, the glyph clears the
+ridge and stays inside the 62.5 % safe square, `mark.js` contains no date logic, the vector
+master is self-contained, the asset set is complete, the launch screen is painted in today's
+season before boot and stands down after, no header returns, and the shipped fonts really do
+carry 書き文.

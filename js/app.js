@@ -1,5 +1,5 @@
 /* Kakibun — app shell: the landscape, navigation, home, i18n, boot. */
-const APP_VERSION = "3.2.0"; // keep in sync with sw.js VERSION
+const APP_VERSION = "3.3.0"; // keep in sync with sw.js VERSION
 const App = (() => {
   const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
   const $ = (id) => document.getElementById(id);
@@ -250,6 +250,8 @@ const App = (() => {
     window.addEventListener("focus", recheck);
 
     renderHome();
+    // the app has drawn — the launch screen has done its job
+    requestAnimationFrame(() => Mark.dismissLaunch());
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
   }
 

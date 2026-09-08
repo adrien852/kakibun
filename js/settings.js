@@ -73,6 +73,10 @@ const Settings = (() => {
         <div class="set-foot">Kakibun v${App.VERSION} · ${esc(App.t("set_foot_offline"))} · ${esc(kanjiLine)}</div>
       </section>
 
+      <section class="set-card" style="align-items:center">
+        ${Mark.signature()}
+      </section>
+
       <section class="set-card">
         <div class="eyebrow">${esc(App.t("set_danger"))}</div>
         <button class="btn-ghost" id="set-reset">${esc(App.t("set_reset"))}</button>

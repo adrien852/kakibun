@@ -3,18 +3,38 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<meta name="theme-color" content="#101a2c">
+<meta name="theme-color" content="#2b1512">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Kakibun</title>
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" href="icons/icon-192.png">
-<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="icon" href="icons/favicon.ico" sizes="32x32 16x16">
+<link rel="icon" href="icons/icon-master.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="preload" as="font" type="font/woff2" href="fonts/zkgn-400.woff2" crossorigin>
 <link rel="preload" as="font" type="font/woff2" href="fonts/zkgn-900.woff2" crossorigin>
 <link rel="stylesheet" href="css/style.css">
+<!-- these two load early on purpose: the launch screen below is painted before
+     first frame, and it must already be in today's season. Both are pure
+     derivation with no DOM dependency. -->
+<script src="js/season.js"></script>
+<script src="js/mark.js"></script>
 </head>
 <body>
+
+<!-- the launch screen. Painted before anything else and removed once the app
+     has drawn, so the first frame is the mark rather than an empty valley. -->
+<div id="launch" aria-hidden="true">
+  <div class="lx-light"></div>
+  <div class="lx-ridge lx-back"></div>
+  <div class="lx-ridge lx-front"></div>
+  <div class="lx-stack">
+    <div class="lx-glyph" id="lx-glyph"></div>
+    <div class="lx-word">kakibun</div>
+    <div class="lx-poetic" id="lx-poetic"></div>
+  </div>
+</div>
+<script>Mark.paintLaunch();</script>
 
 <!-- the landscape every screen stands on; built by js/scene.js -->
 <div id="scene" aria-hidden="true"></div>
@@ -151,7 +171,6 @@
 <script src="js/parse.js"></script>
 <script src="js/kana.js"></script>
 <script src="js/bridge.js"></script>
-<script src="js/season.js"></script>
 <script src="js/scene.js"></script>
 <script src="js/engine.js"></script>
 <script src="js/sfx.js"></script>
