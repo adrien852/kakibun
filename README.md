@@ -517,3 +517,40 @@ ridge and stays inside the 62.5 % safe square, `mark.js` contains no date logic,
 master is self-contained, the asset set is complete, the launch screen is painted in today's
 season before boot and stands down after, no header returns, and the shipped fonts really do
 carry 書き文.
+
+## What's in v3.4 — four from the phone
+
+**A dialogue is a conversation now, not one question.** `reply` and `roleplay` used to drill
+a single line and drop the rest. Every line that is *yours* — speaker B, never line 0 — is
+now its own card, in order, under one mode for the whole exchange, and the conversation runs
+to its end whatever you answered: each card's transcript carries the lines before it, and the
+last card's feedback carries the lines after it, so the closing exchange is finally read. Two
+or three cards per dialogue instead of one (`Engine.replyLines`).
+
+**Speech gets one forgiveness.** The 🎤-only *speak* card has tolerated a bad attempt since
+v1.2; the shared answer panel — produce, vocab, roleplay — graded the first thing it heard.
+Now the first miss costs the perfect-run bonus, says so, and re-arms the mic; the second one
+grades. Typing still gets one shot, because you can see what you typed, and an exam still
+grades the first attempt either way.
+
+**City names never wrap.** The station name, its romaji and the theme shared one flex row, so
+under pressure CJK broke between any two characters: 北海道 went to two lines on a 392 px
+phone, 名古屋 to three at 320 px, and the theme ellipsised on anything narrow. The name and
+its romaji now own a line and the theme sits beneath them. Measured at 320/360/392/430 —
+nothing wraps, nothing clips.
+
+**The carnet searches.** Phrases, Dialogues and Mots each get a field that matches three ways:
+the interface language, and Japanese written either as you'd type it or as it is. `tabemasu`,
+`taberu`, `たべる` and `食べる` all find 食べる — rōmaji goes through `Kana.toKana`, a half-typed
+`tabe` drops its trailing letters rather than breaking mid-syllable, and the *Mots* haystack
+carries each verb's ます form and its lexicon id even though the row prints the dictionary
+form. Accents are folded (`prefere` finds *préfère*) — and the fold recomposes to NFC, because
+NFD splits が into two code points and a decomposed が matches nothing. Dialogues match on
+their setting, their note and every line. The field sits outside the list it filters, so
+typing replaces only `#lib-list` and never blurs the input.
+
+`v340.js` covers all four, including that an exam still refuses the speech retry, that a
+session drawing a dialogue drills all of it in order under one mode, and that switching tab
+clears the query. **`v120.js` caught a real regression here**: guarding the scroll-to-top to
+stop search jumping also stopped *drilling into the library* returning to the top — a v1.2
+feature. Typing never reaches `render()`, so the guard was unnecessary as well as wrong.

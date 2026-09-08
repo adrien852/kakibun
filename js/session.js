@@ -651,7 +651,13 @@ const Session = (() => {
         function markUndone() { done = false; }
 
         if (canSpeak) {
-          let listening = false;
+          /* Speech gets one forgiveness, exactly as the 🎤-only `speak` card
+           * already gave it: the recogniser mishears, the room is loud, a word
+           * comes back in an orthography SPEECH_K doesn't list. The first miss
+           * costs the perfect-run bonus and re-arms the mic; the second one
+           * grades. Typing gets no second chance — you can see what you typed.
+           * An exam grades the first attempt either way. */
+          let listening = false, spokenMiss = 0;
           $("a-mic").addEventListener("click", () => {
             if (listening || done) return;
             Voice.stop();
@@ -681,11 +687,18 @@ const Session = (() => {
                 if (!best) return;
                 heard.textContent = App.t("speak_heard") + " " + best.text;
                 if (done) return;
-                done = true;
                 // the same "either word is right" rule, for the spoken answer
                 let ok = best.g.ok, alt = null;
                 if (!ok) for (const a of alts)
                   if (Voice.match(best.text, a.k, a.r)) { ok = true; alt = a; break; }
+                if (!ok && !spokenMiss && !isExam()) {
+                  spokenMiss = 1;
+                  firstTry = false;
+                  Sfx.bad();
+                  hint.textContent = App.t("speak_retry");
+                  return;                       // the mic is live again, and typing still works
+                }
+                done = true;
                 curBad = alt ? [] : (best.g.bad || []);
                 onGraded({ ok, alt, how: "spoken", text: best.text, grade: best.g });
               },
@@ -834,6 +847,21 @@ const Session = (() => {
   }
   const speakLine = (l, rate) => Voice.speak(Parse.sentence(l.dsl).surfK + "。", rate);
 
+  /* The rest of the conversation, for the feedback panel of the last card.
+   * A dialogue is drilled line by line now, so without this the closing lines
+   * — often the reply to what you just said — would never be seen at all. */
+  function dlgTail(dlg, after) {
+    const rest = dlg.lines.slice(after + 1);
+    if (!rest.length) return "";
+    const lang = App.lang();
+    return `<div class="fb-dlg">` + rest.map(l => {
+      const p = Parse.sentence(l.dsl);
+      return `<div class="fb-dlg-l ${l.sp === "B" ? "out" : ""}">
+        <span class="fb-dlg-jp">${jpHtml(p, { plain: true })}</span>
+        <span class="fb-dlg-fr">${esc(l[lang])}</span></div>`;
+    }).join("") + `</div>`;
+  }
+
   function dlgHead(dlg) {
     return `<div class="dlg-where audio-hint" style="margin-top:4px"
       >${esc(dlg.where[App.lang()])}</div>`;
@@ -878,6 +906,7 @@ const Session = (() => {
         if (options[n] === right) x.classList.add("right");
       });
       setTimeout(() => feedback(ok && firstTry, parsed, item.gp,
+        (item.last ? dlgTail(dlg, li) : "") +
         `<div class="fb-expl">💡 ${esc(dlg.note[lang])}</div>`), ok ? 350 : 900);
     }));
   }
@@ -912,6 +941,7 @@ const Session = (() => {
       if (!ok) firstTry = false;
       feedback(ok && firstTry, parsed, item.gp,
         (typed ? `<div class="fb-expl">${esc(App.t("ans_you_typed"))} ${esc(typed)}</div>` : "") + altLine(r) +
+        (item.last ? dlgTail(dlg, li) : "") +
         `<div class="fb-expl">💡 ${esc(dlg.note[lang])}</div>`);
     }
   }

@@ -55,8 +55,8 @@ const Journey = (() => {
           <span class="city-top">
             <span class="city-jp ${reached ? "on" : ""}">${esc(a.jp)}</span>
             <span class="city-romaji">${esc(a.city[lang])}</span>
-            <span class="city-fr">${esc(a.name[lang])}</span>
           </span>
+          <span class="city-fr">${esc(a.name[lang])}</span>
           <span class="city-track"><i style="width:${pct}%;background:${bar}"></i></span>
         </span>
         <span class="city-count">${done}/${pts.length}</span>

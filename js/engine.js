@@ -315,15 +315,19 @@ const Engine = (() => {
     return out;
   }
 
-  /* Which line of a dialogue is worth asking about: never the first (there is
-   * no context yet), and never a bare greeting (nothing to understand). */
+  /* Every line of the dialogue that is YOURS to produce — speaker B, and never
+   * line 0, which has no conversation in front of it yet. A dialogue is drilled
+   * as a whole conversation now: each of these becomes its own card, in order,
+   * and the exchange runs to its end whatever you answered. */
+  function replyLines(dlg) {
+    const out = [];
+    for (let i = 1; i < dlg.lines.length; i++) if (dlg.lines[i].sp === "B") out.push(i);
+    return out;
+  }
+  /* the first answerable line — kept for callers that want a single card */
   function replyLine(dlg) {
-    const ok = [];
-    for (let i = 1; i < dlg.lines.length; i++) {
-      const toks = Parse.sentence(dlg.lines[i].dsl).toks;
-      if (toks.length >= 2) ok.push(i);
-    }
-    return ok.length ? ok[Math.floor(Math.random() * ok.length)] : null;
+    const all = replyLines(dlg);
+    return all.length ? all[0] : null;
   }
 
   function sentenceCaps(sent) {
@@ -530,11 +534,15 @@ const Engine = (() => {
     const dpool = dialoguesUpTo();
     if (dpool.length && items.length >= 4) {
       const d = dpool[Math.floor(Math.random() * dpool.length)];
-      const li = replyLine(d);
-      if (li != null) {
-        // alternate between understanding the exchange and taking part in it
+      const lines = replyLines(d);
+      if (lines.length) {
+        // One mode for the whole exchange, so a conversation has a consistent
+        // character: either you follow it (reply) or you hold up your end
+        // (roleplay). Every one of your lines is a card, in order — the last
+        // one carries the closing lines so the dialogue always finishes.
         const kind = Math.random() < 0.5 ? "reply" : "roleplay";
-        items.push({ kind, gp: d.gp, dlg: d.i, line: li, free: true });
+        lines.forEach((li, n) => items.push({ kind, gp: d.gp, dlg: d.i, line: li,
+          free: true, last: n === lines.length - 1 }));
       }
     }
 
@@ -774,7 +782,7 @@ const Engine = (() => {
            duePoints, learningDue, sentencesFor, sentKanji, pickSentence, sentenceCaps,
            readingCandidates, spotCandidates, kanjiFillCandidates,
            listenChoices, vocabPool, pickVocab, noteVocab,
-           dialoguesUpTo, dialoguesFor, replyChoices, replyLine,
+           dialoguesUpTo, dialoguesFor, replyChoices, replyLine, replyLines,
            kanjiDistractors, learnedKanjiPool, modeFor, buildSession, buildStrengthen, buildKanjiDebut,
            record, recordStats, noteSeen, masteryProgress, streak, stats,
            missions, missionsDone, noteSession, missionsJustFinished,

@@ -187,13 +187,18 @@ b,strong{font-weight:700}
   font:900 12px/1 var(--ui);transform:rotate(-7deg)}
 .city-stamp.got{border-color:var(--accent);color:var(--accent)}
 .city-main{flex:1;min-width:0}
+/* The station name and its romaji own a line of their own, and the theme sits
+   under them. Sharing one line, the three competed for width and CJK breaks
+   between any two characters — so 北海道 wrapped to two lines on a 392px phone
+   and the theme ellipsised on anything narrower. A city's name never wraps. */
 .city-top{display:flex;align-items:baseline;gap:8px}
-.city-jp{font:500 18px/1 var(--ui);color:rgba(255,255,255,.6)}
+.city-jp{font:500 18px/1 var(--ui);color:rgba(255,255,255,.6);flex:none;white-space:nowrap}
 .city-jp.on{color:#fff}
 /* the station name in letters — quiet, but there whenever the kanji isn't enough */
 .city-romaji{font:500 10px/1 var(--ui);letter-spacing:.1em;text-transform:uppercase;
-  color:rgba(255,255,255,.44);flex:none}
-.city-fr{font-size:11.5px;color:rgba(255,255,255,.66);
+  color:rgba(255,255,255,.44);min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.city-fr{display:block;margin-top:5px;font-size:11.5px;color:rgba(255,255,255,.66);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .city-track{display:block;height:4px;border-radius:2px;background:rgba(255,255,255,.18);margin-top:8px}
 .city-track i{display:block;height:100%;border-radius:2px;transition:width .3s}
@@ -583,3 +588,33 @@ b,strong{font-weight:700}
   .lx-light,.lx-glyph,.lx-word,.lx-poetic{animation:none}
   #launch.gone{transition:none}
 }
+
+/* ============ LIBRARY SEARCH ============
+ * One field per searchable tab. It sits outside #lib-list, which is the only
+ * part re-rendered on a keystroke — re-rendering the whole body would blur the
+ * input and drop the caret. */
+.lib-search{display:flex;align-items:center;gap:9px;margin-top:12px;flex:none;
+  padding:0 13px;border-radius:14px;background:rgba(14,16,26,.5);
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  border:1px solid var(--g-bd)}
+.lib-search:focus-within{border-color:var(--accent)}
+.lib-search-i{font-size:13px;opacity:.7;flex:none}
+.lib-search input{flex:1;min-width:0;background:none;border:none;outline:none;
+  color:#fff;font:400 14px/1 var(--ui);padding:13px 0}
+.lib-search input::placeholder{color:rgba(255,255,255,.45)}
+.lib-search input::-webkit-search-cancel-button{display:none}
+.lib-search-x{flex:none;width:26px;height:26px;border-radius:50%;
+  background:rgba(255,255,255,.14);color:#fff;font-size:11px;line-height:1}
+#lib-list{display:flex;flex-direction:column;gap:8px;padding-bottom:16px}
+
+/* ============ DIALOGUE TAIL ============
+ * The close of the conversation, inside the white feedback panel: a dialogue is
+ * drilled line by line, so without this its last lines would never be read. */
+.fb-dlg{margin-top:11px;padding-top:10px;border-top:1px solid rgba(27,25,23,.14);
+  display:flex;flex-direction:column;gap:8px}
+.fb-dlg-l{display:flex;flex-direction:column;gap:2px;padding:8px 11px;border-radius:13px;
+  background:rgba(27,25,23,.06);align-self:flex-start;max-width:92%}
+.fb-dlg-l.out{background:rgba(27,25,23,.11);align-self:flex-end;text-align:right}
+.fb-dlg-jp{font-size:16px;color:var(--ink);line-height:1.6}
+.fb-dlg-jp ruby rt{font-size:.45em;color:var(--ink-3)}
+.fb-dlg-fr{font-size:11.5px;color:var(--ink-3)}

@@ -13,8 +13,46 @@ const Library = (() => {
   const $ = (id) => document.getElementById(id);
 
   const TABS = ["grammaire", "phrases", "kanji", "dialogues", "mots"];
+  const SEARCHABLE = { phrases: 1, dialogues: 1, mots: 1 };
   let tab = "grammaire";
   let openGp = null, openDlg = null, openKanji = null;
+  let query = "";                       // cleared whenever the tab changes
+
+  /* ---------- search ----------
+   * One field, three ways in: the interface language, and Japanese written
+   * either as you'd type it (rōmaji) or as it is (kana / kanji).
+   *
+   * `norm` lowercases and strips Latin accents so "prefere" finds "préfère".
+   * The NFC recomposition at the end matters: NFD splits が into か + U+3099,
+   * and only the LATIN combining marks (U+0300–036F) are removed — without
+   * recomposing, a decomposed が would never match a composed one. */
+  const norm = (t) => String(t).toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "").normalize("NFC");
+
+  /* Every shape the typed query could be looking for. "tabemasu" becomes
+   * たべます; a half-typed "tabem" becomes たべm, so the stray trailing letters
+   * are dropped as well — otherwise search would break mid-syllable. */
+  function queryForms(q) {
+    const raw = norm(q).trim();
+    if (!raw) return [];
+    const out = [raw];
+    if (/^[a-z0-9 '\-]+$/.test(raw)) {
+      let kana = "";
+      try { kana = Kana.toKana(raw); } catch (e) { kana = ""; }
+      if (kana && kana !== raw) {
+        out.push(kana);
+        const trimmed = kana.replace(/[a-z]+$/, "");
+        if (trimmed && trimmed !== kana) out.push(trimmed);
+      }
+    }
+    return out;
+  }
+  /* every form has to appear somewhere in the row — one hit is enough */
+  const hits = (forms, fields) => {
+    if (!forms.length) return true;
+    const hay = norm(fields.filter(Boolean).join(" \u0000 "));
+    return forms.some(f => hay.indexOf(f) !== -1);
+  };
 
   const dispOpts = () => {
     const s = Engine.state().settings;
@@ -39,7 +77,8 @@ const Library = (() => {
         >${esc(App.t("lib_tab_" + id))}</button>`).join("");
     $("lib-tabs").querySelectorAll(".lib-tab").forEach(el =>
       el.addEventListener("click", () => {
-        tab = el.dataset.tab; openGp = openDlg = openKanji = null; Sfx.tap(); render();
+        tab = el.dataset.tab; openGp = openDlg = openKanji = null; query = "";
+        Sfx.tap(); render();
       }));
 
     const lang = App.lang();
@@ -47,13 +86,46 @@ const Library = (() => {
     if (openDlg !== null) body.innerHTML = dialogueDetail(openDlg, lang);
     else if (openKanji) body.innerHTML = kanjiDetail(openKanji, lang);
     else if (openGp) body.innerHTML = grammarDetail(openGp, lang);
+    else if (SEARCHABLE[tab]) {
+      /* The field lives OUTSIDE the list it filters. Re-rendering the whole
+       * body on every keystroke would blur the input and lose the caret, so
+       * typing only ever replaces #lib-list. */
+      body.innerHTML = `<div class="lib-search">
+          <span class="lib-search-i">🔎</span>
+          <input id="lib-q" type="search" autocomplete="off" autocorrect="off"
+                 autocapitalize="off" spellcheck="false"
+                 placeholder="${esc(App.t("lib_search_" + tab))}" value="${esc(query)}">
+          <button class="lib-search-x" id="lib-qx" ${query ? "" : "hidden"}
+                  aria-label="${esc(App.t("lib_search_clear"))}">✕</button>
+        </div>
+        <div id="lib-list">${listHtml(lang)}</div>`;
+      bindSearch(lang);
+    }
     else if (tab === "grammaire") body.innerHTML = grammarList(lang);
-    else if (tab === "phrases") body.innerHTML = sentenceList(lang);
-    else if (tab === "kanji") body.innerHTML = kanjiGrid();
-    else if (tab === "dialogues") body.innerHTML = dialogueList(lang);
-    else body.innerHTML = wordList(lang);
+    else body.innerHTML = kanjiGrid();
     bind();
+    // every drill-down starts at the top — a v1.2 feature, and typing in the
+    // search field never reaches here: it replaces #lib-list only
     $("library").scrollTop = 0;
+  }
+
+  const listHtml = (lang) =>
+    tab === "phrases" ? sentenceList(lang)
+    : tab === "dialogues" ? dialogueList(lang)
+    : wordList(lang);
+
+  function bindSearch(lang) {
+    const inp = $("lib-q"), x = $("lib-qx");
+    if (!inp) return;
+    const apply = () => {
+      query = inp.value;
+      x.hidden = !query;
+      $("lib-list").innerHTML = listHtml(lang);
+      bind();                            // the rows are new; rewire them
+    };
+    inp.addEventListener("input", apply);
+    inp.addEventListener("keydown", (e) => { if (e.key === "Escape") { inp.value = ""; apply(); } });
+    x.addEventListener("click", () => { inp.value = ""; apply(); inp.focus(); });
   }
 
   /* ---------- one row component, five payloads ---------- */
@@ -69,6 +141,19 @@ const Library = (() => {
       ${say ? `<button class="say-btn" data-say="${esc(say)}">🔊</button>` : ""}
       ${mic != null ? `<button class="say-btn mic" data-read="${mic}">🎤</button>` : ""}
     </div>`;
+
+  /* the ます form of a conjugable word, cached — one lookup per word per render */
+  const POLITE = {};
+  function politeOf(w) {
+    if (POLITE[w.id] !== undefined) return POLITE[w.id];
+    let out = [];
+    if (["v1","v5","vk","vs","vs0"].includes(w.pos)) {
+      try { const c = Conj.conj(w, "masu"); if (c) out = [c.k, c.r].filter(Boolean); }
+      catch (e) { out = []; }
+    }
+    POLITE[w.id] = out;
+    return out;
+  }
 
   const arcOf = (gpId) => {
     const g = GRAMMAR.find(x => x.id === gpId);
@@ -105,13 +190,17 @@ const Library = (() => {
 
   function sentenceList(lang) {
     const cur = Engine.currentIndex();
-    const rows = SENTENCES.filter(s => GRAMMAR.findIndex(g => g.id === s.gp) < cur)
-      .slice().reverse().map(s => {
+    const forms = queryForms(query);
+    const pool = SENTENCES.filter(s => GRAMMAR.findIndex(g => g.id === s.gp) < cur);
+    if (!pool.length) return empty(App.t("lib_no_sent"));
+    const rows = pool.slice().reverse().map(s => {
         const p = Parse.sentence(s.dsl);
+        // the reading is what rōmaji resolves to, so it has to be in the haystack
+        if (!hits(forms, [s[lang], p.surfK, p.surfR])) return "";
         return row(jpHtml(p), s[lang], "N°" + s.i,
                    `data-dsl="${esc(s.dsl)}" data-jgp="${esc(s.gp)}"`, p.surfK + "。", s.i);
       }).join("");
-    return rows || empty(App.t("lib_no_sent"));
+    return rows || noMatch();
   }
 
   function kanjiGrid() {
@@ -162,7 +251,17 @@ const Library = (() => {
   function dialogueList(lang) {
     const ds = Engine.dialoguesUpTo();
     if (!ds.length) return empty(App.t("lib_no_dlg"));
-    return ds.slice().reverse().map(d => {
+    const forms = queryForms(query);
+    const rows = ds.slice().reverse().map(d => {
+      // a dialogue matches on anything in it: the setting, the note, or any line
+      if (forms.length) {
+        const fields = [d.where[lang], d.note[lang]];
+        for (const l of d.lines) {
+          const p = Parse.sentence(l.dsl);
+          fields.push(l[lang], p.surfK, p.surfR);
+        }
+        if (!hits(forms, fields)) return "";
+      }
       const a = Parse.sentence(d.lines[0].dsl);
       const b = d.lines[1] ? Parse.sentence(d.lines[1].dsl) : null;
       const g = GRAMMAR.find(x => x.id === d.gp);
@@ -176,6 +275,7 @@ const Library = (() => {
         <div class="dlg-note">💡 ${esc(d.note[lang])}</div>
       </button>`;
     }).join("");
+    return rows || noMatch();
   }
 
   function dialogueDetail(i, lang) {
@@ -214,16 +314,25 @@ const Library = (() => {
     }
     const ids = Object.keys(first);
     if (!ids.length) return empty(App.t("lib_no_sent"));
-    return ids.map(id => {
+    const forms = queryForms(query);
+    const rows = ids.map(id => {
       const w = LEXICON[id];
+      /* The haystack is wider than what the row shows. The lexicon id IS the
+       * word in rōmaji, so it comes along free — and the ます form joins it,
+       * because a learner types "tabemasu" far more readily than "taberu",
+       * and the list only ever prints dictionary forms. */
+      if (!hits(forms, [w[lang], w.k, w.r, id].concat(politeOf(w)))) return "";
       const pos = App.t("pos_" + w.pos);
       const head = w.k ? `${esc(w.k)} <span style="opacity:.6">(${esc(w.r)})</span>` : esc(w.r);
       return row(head, `${w[lang]}${pos === "pos_" + w.pos ? "" : " · " + pos}`,
                  arcOf(first[id]), "", w.r);
     }).join("");
+    return rows || noMatch();
   }
 
   const empty = (msg) => `<section class="card"><div class="empty-note">${esc(msg)}</div></section>`;
+  /* an empty result is not the same as an empty tab: say which */
+  const noMatch = () => empty(App.t("lib_no_match").replace("{q}", query.trim()));
 
   /* re-parse from the row's own dsl so a tap knows which token it hit */
   function bindTaps(root, parsed, gpId) {
