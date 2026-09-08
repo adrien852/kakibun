@@ -156,7 +156,7 @@ b,strong{font-weight:700}
 .stat-l{font-size:11px;color:rgba(255,255,255,.85);margin-top:4px}
 
 /* ============ NAV ============ */
-#nav{flex:none;margin:0 20px calc(18px + env(safe-area-inset-bottom));
+#nav{flex:none;margin:10px 20px calc(18px + env(safe-area-inset-bottom));
   display:flex;justify-content:space-around;padding:5px 0;border-radius:18px;
   background:var(--g-nav);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
   border:1px solid var(--g-bd);position:relative;z-index:2}
@@ -190,7 +190,11 @@ b,strong{font-weight:700}
 .city-top{display:flex;align-items:baseline;gap:8px}
 .city-jp{font:500 18px/1 var(--ui);color:rgba(255,255,255,.6)}
 .city-jp.on{color:#fff}
-.city-fr{font-size:11.5px;color:rgba(255,255,255,.66)}
+/* the station name in letters — quiet, but there whenever the kanji isn't enough */
+.city-romaji{font:500 10px/1 var(--ui);letter-spacing:.1em;text-transform:uppercase;
+  color:rgba(255,255,255,.44);flex:none}
+.city-fr{font-size:11.5px;color:rgba(255,255,255,.66);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .city-track{display:block;height:4px;border-radius:2px;background:rgba(255,255,255,.18);margin-top:8px}
 .city-track i{display:block;height:100%;border-radius:2px;transition:width .3s}
 .city-count{font:600 10px/1 var(--mono);color:rgba(255,255,255,.7);flex:none}
@@ -200,7 +204,9 @@ b,strong{font-weight:700}
   border:1px solid var(--g-bd-strong);flex:none;margin-bottom:16px}
 .city-back{font:600 10px/1 var(--mono);letter-spacing:.16em;color:var(--accent)}
 .city-name{display:flex;align-items:baseline;gap:10px;margin-top:12px;flex-wrap:wrap}
-.city-name .jp{font:600 30px/1 var(--ui);color:#fff}
+.city-name .jp{font:600 30px/1 var(--ui);color:#fff;display:flex;align-items:baseline;gap:9px}
+.city-name .jp em{font:500 11px/1 var(--ui);font-style:normal;letter-spacing:.12em;
+  text-transform:uppercase;color:rgba(255,255,255,.5)}
 .city-name .fr{font:400 italic 15px/1.2 var(--serif);color:rgba(255,255,255,.8)}
 .stop-list{margin-top:14px;display:flex;flex-direction:column;gap:9px}
 .stop-row{display:flex;align-items:center;gap:11px;width:100%;text-align:left;
@@ -240,9 +246,11 @@ b,strong{font-weight:700}
 .empty-note{font-size:12.5px;color:rgba(255,255,255,.7);line-height:1.5}
 
 /* ============ LIBRARY ============ */
-.lib-tabs{margin-top:12px;display:flex;gap:5px;flex:none;overflow-x:auto;scrollbar-width:none}
-.lib-tabs::-webkit-scrollbar{display:none}
-.lib-tab{padding:8px 7px;border-radius:999px;font:500 10.5px/1 var(--ui);white-space:nowrap;
+/* five tabs, and they share the width evenly rather than sitting in a short
+   scrolling row against the left edge */
+.lib-tabs{margin-top:12px;display:flex;gap:5px;flex:none}
+.lib-tab{flex:1 1 0;min-width:0;padding:8px 4px;border-radius:999px;font:500 10.5px/1 var(--ui);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   background:rgba(14,16,26,.5);color:#fff;border:1px solid rgba(255,255,255,.2)}
 .lib-tab.on{background:#fff;color:var(--ink);border-color:#fff}
 .lib-body{margin-top:12px;display:flex;flex-direction:column;gap:8px;padding-bottom:16px;flex:none}
@@ -431,13 +439,15 @@ b,strong{font-weight:700}
 .tr-jp ruby rt{font-size:.45em;color:rgba(255,255,255,.66)}
 
 /* feedback */
-.fb{margin-top:auto;flex:none;border-radius:24px;padding:16px 18px;background:rgba(255,255,255,.95);
+.fb{margin-top:auto;flex:none;border-radius:24px;padding:14px 18px 15px;background:rgba(255,255,255,.95);
   position:relative;overflow:hidden;animation:rise .25s}
 .fb-halo{position:absolute;right:14px;top:-18px;width:70px;height:70px;border-radius:50%;
   animation:burst 2.4s ease-out infinite}
 .fb.good .fb-halo{background:rgba(122,209,161,.2)}
 .fb.bad .fb-halo{background:rgba(226,96,79,.16)}
-.fb>*{position:relative}
+/* the halo is decoration and must stay out of the flow — a plain `.fb>*`
+   rule here would re-stack it as a 70px block above the text */
+.fb>*:not(.fb-halo){position:relative}
 .fb-head{font:900 15px/1.3 var(--ui)}
 .fb.good .fb-head{color:var(--ok-fg)}
 .fb.bad .fb-head{color:var(--ko-fg)}

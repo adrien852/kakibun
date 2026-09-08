@@ -54,6 +54,7 @@ const Journey = (() => {
         <span class="city-main">
           <span class="city-top">
             <span class="city-jp ${reached ? "on" : ""}">${esc(a.jp)}</span>
+            <span class="city-romaji">${esc(a.city[lang])}</span>
             <span class="city-fr">${esc(a.name[lang])}</span>
           </span>
           <span class="city-track"><i style="width:${pct}%;background:${bar}"></i></span>
@@ -116,7 +117,7 @@ const Journey = (() => {
     return `<section class="city-detail">
       <button class="city-back">← ${esc(App.t("all_cities"))}</button>
       <div class="city-name">
-        <span class="jp">${esc(a.jp)}</span>
+        <span class="jp">${esc(a.jp)}<em>${esc(a.city[lang])}</em></span>
         <span class="fr">${esc(a.name[lang])}</span>
       </div>
       <div class="stop-list">

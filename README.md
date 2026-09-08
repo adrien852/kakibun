@@ -400,3 +400,30 @@ step with its reading, and the word popup's centring isn't wiped by its animatio
 `v300.js` covers the redesign itself: the sixteen sky states, the landscape, every screen,
 all fourteen modes, the feedback panel and the result, and that the self-hosted faces
 actually loaded rather than falling back.
+
+## What's in v3.1 — six things the phone asked for
+
+- **The feedback panel had an 86px hole in it.** `.fb>*{position:relative}` was catching
+  `.fb-halo` too and restacking a decorative 70px circle as a block in the flow, so every
+  graded card opened with an empty white band above "Bien joué !". The rule now excludes
+  the halo, and the panel's padding came down a little on top of that.
+- **The carnet's five tabs share the width** instead of sitting in a short scrolling row
+  against the left edge.
+- **The bottom nav has air above it** — it was flush against the screen it sits under.
+- **The stations say their names in letters.** `ARCS` has carried `city.fr` / `city.en`
+  since v1.0 and the journey simply never showed it; every city row now reads
+  東京 · TOKYO · Se présenter, and an opened city repeats it under the big kanji. Quiet
+  and uppercase, so it reads as a station sign rather than a translation.
+- **A stale Kakikana link can no longer pass itself off as a live one.** The automatic
+  sync is intact and tested end to end (`v310.js`): same-origin `localStorage`, re-read on
+  `focus`/`visibilitychange`, the new characters diffed, toasted, saved and offered as a
+  debut session. But that path only exists **when both apps are served from the same
+  origin**. Import a copy once and the app looked identical from the inside while quietly
+  serving month-old kanji forever. Now the home banner and a new Settings card name which
+  of the two links is in force, with the export's date, and say plainly that an imported
+  copy does not update on its own.
+
+`v310.js` measures all six: the panel's first line sits at its padding, the tab row spans
+the screen with evenly-shared tabs and no sideways scroll, the nav has a real gap, every
+city carries its romaji smaller than the kanji beside it, new kanji cross from Kakikana
+with no tap, and a stale import admits it in both places.

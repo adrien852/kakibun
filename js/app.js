@@ -1,5 +1,5 @@
 /* Kakibun — app shell: the landscape, navigation, home, i18n, boot. */
-const APP_VERSION = "3.0.0"; // keep in sync with sw.js VERSION
+const APP_VERSION = "3.1.0"; // keep in sync with sw.js VERSION
 const App = (() => {
   const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
   const $ = (id) => document.getElementById(id);
@@ -9,6 +9,14 @@ const App = (() => {
   const lang = () => Engine.state().settings.lang;
   const t = (key) => (I18N[lang()] && I18N[lang()][key] !== undefined) ? I18N[lang()][key] : key;
   const pickOk = () => { const v = t("ok_variants"); return v[Math.floor(Math.random() * v.length)]; };
+  /* Kakikana stamps its export with an ISO date; show the day, never the clock */
+  const fmtDate = (d) => {
+    if (!d) return t("set_link_undated");
+    const dt = new Date(d);
+    return isNaN(dt) ? String(d).slice(0, 10)
+      : dt.toLocaleDateString(lang() === "fr" ? "fr-FR" : "en-GB",
+          { day: "numeric", month: "short", year: "numeric" });
+  };
 
   /* ---------- navigation ----------
    * The landscape is a fixed sibling and is never touched here: moving between
@@ -121,12 +129,20 @@ const App = (() => {
       $("newkanji-later").textContent = lit ? t("newkanji_later") : t("newkanji_ok");
     }
 
-    /* the Kakikana link, only while it is missing */
+    /* The Kakikana link. It shows while there is none — and, just as important,
+     * while the link is only a file imported once: an old imported copy is
+     * indistinguishable from a live link from the inside, so it has to say so
+     * rather than quietly serving last month's kanji forever. Only the
+     * same-origin localStorage read ("auto") updates by itself. */
     const banner = $("kakikana-banner");
-    banner.hidden = Bridge.hasInfo();
-    if (!Bridge.hasInfo()) {
-      $("kakikana-banner-txt").textContent = t("banner_no_kakikana");
-      $("kakikana-import-btn").textContent = t("banner_import");
+    const link = Bridge.hasInfo() ? Bridge.importInfo() : null;
+    const live = link && link.source === "auto";
+    banner.hidden = !!live;
+    if (!live) {
+      $("kakikana-banner-txt").textContent = link
+        ? t("banner_stale").replace("{d}", fmtDate(link.date))
+        : t("banner_no_kakikana");
+      $("kakikana-import-btn").textContent = t(link ? "banner_reimport" : "banner_import");
     }
   }
 
@@ -239,6 +255,6 @@ const App = (() => {
 
   document.addEventListener("DOMContentLoaded", boot);
 
-  return { t, lang, pickOk, nav, renderHome, applyLang, toast, toastMaster,
+  return { t, lang, pickOk, nav, renderHome, applyLang, toast, toastMaster, fmtDate,
            exportSave, esc, VERSION: APP_VERSION };
 })();

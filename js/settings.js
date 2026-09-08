@@ -39,6 +39,14 @@ const Settings = (() => {
       ? App.t("set_foot_kanji").replace("{n}", Bridge.learnedCount())
       : App.t("set_foot_nokanji");
 
+    /* Say plainly which of the two links is in force. "auto" is the same-origin
+     * localStorage read and is the only one that keeps itself up to date; a
+     * file imported once looks identical from the inside, so it has to be named. */
+    const li = Bridge.hasInfo() ? Bridge.importInfo() : null;
+    const linkLine = !li ? App.t("set_link_none")
+      : App.t(li.source === "auto" ? "set_link_auto" : "set_link_file")
+          .replace("{n}", li.n).replace("{d}", App.fmtDate(li.date));
+
     body.innerHTML = `
       <div class="sw-card">${rows}</div>
 
@@ -48,6 +56,13 @@ const Settings = (() => {
           <button data-lang="fr" class="${s.lang === "fr" ? "on" : ""}">Français</button>
           <button data-lang="en" class="${s.lang === "en" ? "on" : ""}">English</button>
         </div>
+      </section>
+
+      <section class="set-card">
+        <div class="eyebrow">${esc(App.t("set_link_eyebrow"))}</div>
+        <div class="set-foot" style="margin-top:0">${esc(linkLine)}</div>
+        ${li && li.source === "auto" ? "" :
+          `<button class="btn-ghost" id="set-link-import">${esc(App.t(li ? "banner_reimport" : "banner_import"))}</button>`}
       </section>
 
       <section class="set-card">
@@ -88,6 +103,9 @@ const Settings = (() => {
     document.getElementById("set-restore").addEventListener("click",
       () => document.getElementById("restore-file").click());
     document.getElementById("set-import").addEventListener("click",
+      () => document.getElementById("import-file").click());
+    const relink = document.getElementById("set-link-import");
+    if (relink) relink.addEventListener("click",
       () => document.getElementById("import-file").click());
     document.getElementById("set-reset").addEventListener("click", () => {
       if (!confirm(App.t("set_reset_confirm"))) return;
