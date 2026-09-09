@@ -199,9 +199,13 @@ const Engine = (() => {
   }
 
   /* Least-seen wins, with a bonus for sentences showing off recently-learned kanji. */
+  /* `excludeIdx` takes an index or a list of them — an introduction now draws
+   * three sentences and each has to avoid the ones already chosen. */
   function pickSentence(gp, maxLvl, excludeIdx) {
-    const pool = sentencesFor(gp).filter(s => s.lvl <= maxLvl && s.i !== excludeIdx);
-    const all = pool.length ? pool : sentencesFor(gp);
+    const exc = excludeIdx == null ? [] : [].concat(excludeIdx);
+    const pool = sentencesFor(gp).filter(s => s.lvl <= maxLvl && exc.indexOf(s.i) < 0);
+    const wider = pool.length ? pool : sentencesFor(gp).filter(s => exc.indexOf(s.i) < 0);
+    const all = wider.length ? wider : sentencesFor(gp);
     if (!all.length) return null;
     const fresh = new Set(state.newKanji || []);
     let best = null, bestScore = Infinity;
@@ -485,6 +489,11 @@ const Engine = (() => {
   }
 
   /* ---------- session building ---------- */
+  /* How many sentences a new grammar point introduces. Each one costs two
+   * cards — assembled from tiles, then asked about — so this is the main
+   * control on how long a lesson is. Reviews are budgeted separately below. */
+  const INTRO_SENTENCES = 3;
+
   function buildSession() {
     load();
     const items = [];
@@ -502,20 +511,38 @@ const Engine = (() => {
        * no scaffolding, all on first sight. You cannot answer a question about
        * a sentence you have not read yet. Two sentences met properly beat four
        * met badly; the rest of the point's sentences arrive in later reviews. */
-      const a = pickSentence(g.id, 1);
-      const b = a ? (pickSentence(g.id, 1, a.i) || pickSentence(g.id, 2, a.i)) : null;
-      const intro = [a, b].filter(Boolean);
+      /* THREE sentences, each still met with tiles before anything is asked
+       * about it. Two was too narrow a first look at a grammar point — the same
+       * pair came back with the same two questions — but the v2.2 rule holds:
+       * you cannot answer a question about a sentence you have not read yet, so
+       * every one of them is assembled first and questioned afterwards. */
+      const intro = [];
+      for (let n = 0; n < INTRO_SENTENCES; n++) {
+        const s = pickSentence(g.id, n === 0 ? 1 : 2, intro.map(x => x.i));
+        if (s && !intro.some(x => x.i === s.i)) intro.push(s);
+      }
       intro.forEach((s, n) =>
         items.push({ kind: n === 0 ? "tiles_read" : "tiles", gp: g.id, sent: s.i }));
-      // second pass over the same sentences, now that they have been read
+
+      /* Second pass over those same sentences, each in a DIFFERENT mode, drawn
+       * from as wide a pool as the sentence supports. Production from nothing
+       * (`produce`) is still absent on purpose — that is the next visit's job —
+       * but listening, spotting and the kanji modes are all fair once a sentence
+       * has been assembled by hand. */
+      const showAll = state.settings.showAllKanji || !Bridge.hasInfo();
       const asked = [];
       for (const s of intro) {
         const caps = sentenceCaps(s);
         const opts = [];
         if (caps.prt) opts.push("cloze");
         if (g.tf && caps.tf) opts.push("transform");
+        if (caps.nPrt >= 2 && spotCandidates(s).length) opts.push("spot");
+        opts.push("listen");
+        if (readingCandidates(s, showAll).length) opts.push("reading");
+        if (kanjiFillCandidates(s, showAll).length && learnedKanjiPool(showAll).length >= 4)
+          opts.push("kanjifill");
         opts.push("speak");
-        // prefer a kind this point hasn't already asked, so the pair varies
+        // prefer a kind this point hasn't already asked, so the set varies
         const mode = opts.find(o => asked.indexOf(o) < 0) || opts[0];
         asked.push(mode);
         items.push({ kind: mode, gp: g.id, sent: s.i });

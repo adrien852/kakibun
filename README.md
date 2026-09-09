@@ -597,3 +597,42 @@ dropped under `prefers-reduced-motion`.
 whole-dialogue playback, a card that plays itself on entry and a replay button all speak
 **and play nothing** — with sound switched on, so silence is a real result — while navigation
 and grading still make their noises.
+
+## What's in v3.7 — a wider first look, and numbers heard as digits
+
+**A lesson now introduces three sentences instead of two.** The reviews around it are
+untouched — still five alongside a new point, nine when the journey is finished — so the
+session grew only where it was asked to: the lesson block goes from 5 cards to 7, from 2
+sentences to 3, and spans six distinct kinds of card instead of four.
+
+The v2.2 rule survives intact: **every sentence is assembled from tiles before anything is
+asked about it.** The introduction is a run of tile assembly, one card per sentence, then a
+run of questions on those same three — each in a mode the lesson hasn't used yet, drawn from
+cloze, transform, spot, listen, reading, kanji-fill and speak. `produce` is deliberately not
+in that pool: producing a sentence from nothing on first sight is the thing v2.2 removed.
+
+`pickSentence` now takes a list of indices to avoid rather than a single one, so the three
+draws can't collide. Measured over 120 built sessions: 3.0 sentences and 6.0 kinds every
+time, never fewer, with the review count flat at 5.0.
+
+**「さん」 heard as 「3」 counted as wrong.** The recogniser transcribes spoken numbers as
+digits — 今3時です for 今三時です — and digits survived `Voice.strip()` untouched, so no
+surface the grader knew about could ever match them.
+
+The fix folds digits into the spelling the corpus actually uses, inside `Kana.speech()`, which
+means it lands in `Voice.strip()` and therefore applies to **both sides** of the comparison —
+the same symmetry rule that has held since v2.3. 千 not 一千, 一万 not 万, 三百 not 三〇〇:
+the converter was validated against the lexicon rather than against a textbook, and all 35
+digit spellings the lexicon holds fold back to a form the lexicon also holds.
+
+A wrong number is still wrong, word for word. Inside a whole sentence the tolerant speak-card
+grader forgives one bad token, so 「今5時です」 passes for 「今三時です」 — but so does
+「今九時です」, with no digit in sight. That tolerance is the speak card's own design and
+pre-dates this change; `{strict:true}`, which produce, vocab and roleplay use, rejects both
+while still accepting the digit spelling of the right number.
+
+`v370.js` covers all of it. Two v2.2 assertions were rewritten rather than the code: one had
+hard-coded the two-sentence shape, and one used `sentSeen` — a record of *past* sessions — as
+a proxy for "has been read", which no longer answers the question now that the third sentence
+introduced is routinely new. It now checks what the rule was always protecting: a tiles card
+for that sentence earlier **in the same session**.

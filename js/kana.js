@@ -144,8 +144,37 @@ const Kana = (() => {
   /* ー → the vowel it lengthens, は/へ/を → the sounds they actually make.
    * Kept separate from norm() because speech grading compares against the KANJI
    * surface too, so it must not drop everything that isn't a kana. */
+  /* ---------- numbers ----------
+   * A recogniser writes numbers as digits — "3時" where the corpus writes 三時,
+   * "10000円" where it writes 一万円. Neither spelling is wrong, so speech
+   * comparison folds one into the other, and KANJI is the target because that
+   * is what the corpus already holds. The standard spelling rules reproduce
+   * every numeral the lexicon uses — 1000 → 千 (not 一千), 10000 → 一万,
+   * 300 → 三百 — and `kana_test.js` checks that against the lexicon itself.
+   *
+   * This is why SPEECH_K's digit entries are no longer load-bearing: they still
+   * work, but a number the table never listed now folds anyway. */
+  const NUM1 = ["", "一", "二", "三", "四", "五", "六", "七", "八", "九"];
+  function under10k(n) {
+    let out = "";
+    for (const [v, ch] of [[1000, "千"], [100, "百"], [10, "十"]]) {
+      const q = Math.floor(n / v);
+      if (q) { out += (q === 1 ? "" : NUM1[q]) + ch; n -= q * v; }
+    }
+    return n ? out + NUM1[n] : out;
+  }
+  function kanjiNum(n) {
+    if (n === 0) return "零";
+    const man = Math.floor(n / 10000), rest = n % 10000;
+    return (man ? under10k(man) + "万" : "") + (rest ? under10k(rest) : "");
+  }
+  const numerals = (s) => String(s).replace(/[0-9０-９]+/g, (d) => {
+    const n = parseInt(d.replace(/[０-９]/g, c => "0123456789"[c.charCodeAt(0) - 0xFF10]), 10);
+    return (n > 0 && n <= 99999999) ? kanjiNum(n) : d;
+  });
+
   function speech(s) {
-    let k = Parse.fold(String(s || ""));
+    let k = Parse.fold(numerals(String(s || "")));
     let out = "";
     for (const ch of k) {
       if (ch === "ー" || ch === "－") out += VOWEL_OF[out[out.length - 1]] || "";
@@ -166,6 +195,6 @@ const Kana = (() => {
     return tries.some(t => norm(t) === want);
   }
 
-  return { toKana, variants, isRomaji, norm, speech, same };
+  return { toKana, variants, isRomaji, norm, speech, same, numerals, kanjiNum };
 })();
 if (typeof module !== "undefined") module.exports = { Kana };
