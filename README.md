@@ -554,3 +554,46 @@ session drawing a dialogue drills all of it in order under one mode, and that sw
 clears the query. **`v120.js` caught a real regression here**: guarding the scroll-to-top to
 stop search jumping also stopped *drilling into the library* returning to the top — a v1.2
 feature. Typing never reaches `render()`, so the guard was unnecessary as well as wrong.
+
+## What's in v3.5 — the carnet's dialogues, on any sky
+
+A dialogue opened from the carnet was pale-on-pale over a bright sky and only became
+readable once the hills scrolled up behind it. The bubbles were reusing the session's
+transcript styles — `rgba(255,255,255,.08)` — which are right *in a session*, where a dark
+scrim sits between them and the landscape, and wrong in the carnet, where nothing does.
+
+The conversation now gets a **plate of its own** (`.transcript.on-scene`) and the bubbles
+tint against that, so contrast no longer depends on the weather. Your own lines keep their
+alignment and gain a soft accent edge rather than being distinguished by being *lighter* —
+lightening them was what ate the contrast margin. The dialogue list card went from `.55` to
+`.7` for the same reason, and its 💡 note from 62 % to 78 % white.
+
+**The numbers, because they were measured rather than chosen.** `v350.js` renders the carnet
+in all sixteen season × hour-band states, screenshots each, samples the real composited pixel
+inside a bubble and computes its contrast against the text drawn on it. The worst sky is
+**haru.day**. Before: **1.21:1** — invisible, exactly what the phone showed. After:
+**8.07:1** for the Japanese and 6.39:1 for the translation, against a 4.5:1 AA target. The
+test was run against the old stylesheet first to confirm it actually fails on the bug.
+
+The session's own transcript is deliberately untouched, and `v350.js` asserts that too: it
+already stands on the scrim, and plating it twice would only make it muddy.
+
+## What's in v3.6 — nothing plays over the speech
+
+The app fired a three-note chime every time it spoke — `Sfx.voice()`, called from the
+carnet's 🔊 buttons and from every replay and auto-play in a session. It ran for about
+0.9 s, straight over the opening mora of the utterance it was announcing.
+
+It's gone, from both call sites and from `sfx.js` itself, so it can't quietly come back.
+Everything else still sounds: navigation taps, a graded answer, a mastered point, the end
+of a session. **Nothing sounds while the app is speaking.**
+
+Removing it left a hole worth patching: the chime was also the only confirmation that a 🔊
+tap had registered, and on a device with no Japanese voice installed the button would now
+look completely dead. So the acknowledgement is visual — a short accent pulse on the button,
+dropped under `prefers-reduced-motion`.
+
+`v360.js` wraps every function on `Sfx` with a counter and asserts that a carnet 🔊 tap, a
+whole-dialogue playback, a card that plays itself on entry and a replay button all speak
+**and play nothing** — with sound switched on, so silence is a real result — while navigation
+and grading still make their noises.

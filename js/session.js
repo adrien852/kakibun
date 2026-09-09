@@ -82,7 +82,10 @@ const Session = (() => {
     });
   }
 
-  const tts = (parsed, rate) => { Voice.speak(parsed.surfK + "。", rate); Sfx.voice(); };
+  /* Speech goes out unaccompanied — see the note in library.js. This is called
+     both from replay buttons and from the automatic play on card entry, and the
+     chime covered the opening mora in both. */
+  const tts = (parsed, rate) => Voice.speak(parsed.surfK + "。", rate);
   const foot = (b) => { $("sess-foot").innerHTML = b; };
   const setBar = () => { $("sess-bar-fill").style.width = (idx / items.length * 100) + "%"; };
 

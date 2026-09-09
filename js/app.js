@@ -1,5 +1,5 @@
 /* Kakibun — app shell: the landscape, navigation, home, i18n, boot. */
-const APP_VERSION = "3.4.0"; // keep in sync with sw.js VERSION
+const APP_VERSION = "3.6.0"; // keep in sync with sw.js VERSION
 const App = (() => {
   const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
   const $ = (id) => document.getElementById(id);

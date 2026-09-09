@@ -69,7 +69,18 @@ const Library = (() => {
       : `<span class="tok tap${t.type === "p" ? " prt" : ""}" data-i="${i}">${segHtml(t, d)}</span>`
     ).join("") + `<span class="tok">。</span>`;
   };
-  const speak = (text) => { Voice.speak(text); Sfx.voice(); };
+  /* No chime here. The 🔊 buttons ARE the speech, and a three-note arpeggio
+     played over the first syllable of an utterance is just something to listen
+     past. The button's own press state is the acknowledgement. */
+  const speak = (text) => Voice.speak(text);
+  /* The chime used to double as "your tap landed". Without it a device with no
+     voices installed would leave the button looking dead, so the acknowledgement
+     is visual now. The reflow between remove and add restarts the animation when
+     the same button is tapped twice. */
+  const pulse = (el) => {
+    el.classList.remove("speaking"); void el.offsetWidth; el.classList.add("speaking");
+    setTimeout(() => el.classList.remove("speaking"), 460);
+  };
 
   function render() {
     $("lib-tabs").innerHTML = TABS.map(id =>
@@ -292,7 +303,7 @@ const Library = (() => {
         <div class="eyebrow">${esc(arcOf(d.gp))}</div>
         <div class="dlg-where" style="margin-top:6px">${esc(d.where[lang])}</div>
       </section>
-      <div class="transcript" style="margin-top:10px">${lines}</div>
+      <div class="transcript on-scene" style="margin-top:10px">${lines}</div>
       <section class="card" style="margin-top:10px">
         <div class="dlg-note">💡 ${esc(d.note[lang])}</div>
       </section>
@@ -349,7 +360,7 @@ const Library = (() => {
     body.querySelectorAll("[data-dsl]").forEach(el =>
       bindTaps(el, Parse.sentence(el.dataset.dsl), el.dataset.jgp || null));
     body.querySelectorAll("[data-say]").forEach(el =>
-      el.addEventListener("click", (e) => { e.stopPropagation(); speak(el.dataset.say); }));
+      el.addEventListener("click", (e) => { e.stopPropagation(); speak(el.dataset.say); pulse(el); }));
     body.querySelectorAll("[data-read]").forEach(el =>
       el.addEventListener("click", (e) => {
         e.stopPropagation();

@@ -58,12 +58,10 @@ const Sfx = (() => {
   /* tap — the marimba note alone, barely there */
   function tap() { tone(chord()[3], 0, 0.09, "sine", 0.05); }
   /* about to speak, or playback starting — three ascending pad tones */
-  function voice() {
-    const p = chord();
-    tone(p[1], 0,    0.5, "sine", 0.08);
-    tone(p[2], 0.12, 0.5, "sine", 0.06);
-    tone(p[3], 0.24, 0.7, "sine", 0.05);
-  }
+  /* There was a `voice()` chime here, played whenever the app spoke. It is gone
+     on purpose (v3.6): it overlapped the utterance it was announcing and made
+     the Japanese harder to hear. Nothing in the app plays a sound over speech
+     any more — if you add one, you are re-introducing this. */
   /* a grammar point just became 🏅 — the pad, held, with the octave over it */
   function master() {
     const p = chord();
@@ -80,5 +78,5 @@ const Sfx = (() => {
     tone(p[3] * 2, 0.4, 0.8, "sine", 0.05);
   }
 
-  return { good, bad, tap, voice, master, complete };
+  return { good, bad, tap, master, complete };
 })();
