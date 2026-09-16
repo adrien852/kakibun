@@ -636,3 +636,38 @@ hard-coded the two-sentence shape, and one used `sentSeen` — a record of *past
 a proxy for "has been read", which no longer answers the question now that the third sentence
 introduced is routinely new. It now checks what the rule was always protecting: a tiles card
 for that sentence earlier **in the same session**.
+
+## What's in v3.8 — the retry that never actually forgave
+
+Three separate faults, all with the same symptom: **a correct spoken answer coming back
+red.** One of them was the feature added in v3.4 quietly doing nothing.
+
+**The forgiven attempt still cost the card.** v3.4 added "tolerate one failure before the
+exercise is failed", and it implemented that by clearing `firstTry` — which is the *same
+flag the verdict is built from* (`feedback(ok && firstTry, …)`). So the retry re-armed the
+mic and nothing else: the card had already been lost before the second attempt was spoken,
+and a perfect second reading came back as *Pas tout à fait* and cost the point in the SRS.
+Both cards that offer the retry — the 🎤 `speak` card and the mixed type-or-speak panel used
+by produce, vocab, reply and roleplay — had it. **A miss the app decides to forgive now costs
+nothing at all.** An exam still grades the first attempt.
+
+**`alts` meant two things in one function.** The outer `alts` is the list of
+equally-correct wordings (`ALT_WORDS` — はい and ええ are both *oui*); the recogniser's own
+list of transcriptions, passed into the `Voice.listen` callback, was called `alts` too and
+shadowed it. The fallback that was meant to accept the other wording was therefore reading
+`.k` and `.r` off a plain string, and **the はい/ええ rule had silently stopped applying to
+anything spoken.** It still worked when typed, which is why it looked fine. The two lists
+now have two names.
+
+**「えぇ」 was neither word.** A small vowel repeating the vowel before it is a drawl —
+「ええ」 held an extra beat — and recognisers write it. `Kana.speech()` spelled out the long
+mark (えー → ええ) but left the small kana alone. It now folds, under a deliberately narrow
+test: *same vowel as the character before it*. That leaves every real small-vowel digraph
+untouched — ふぁ is an あ after an u-sound, てぃ an い after an e-sound, neither matches — and
+ゃゅょ are not in the set at all.
+
+The reported line itself — 「おはようございます昨日は雨でした」, where the recogniser wrote
+昨日 and 雨 for words the app displays in kana — **was already graded correct** before any of
+this. `v380.js` asserts that first, so the kanji question is settled and stays settled; the
+red panel was the forgiveness bug. Run against the previous build, that harness reproduces the
+screenshot exactly, down to the transcript.

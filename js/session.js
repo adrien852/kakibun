@@ -582,7 +582,11 @@ const Session = (() => {
           bindTaps($("s-jp"), parsed, item.gp);
           if (best.g.ok) { finished = true; feedback(firstTry, parsed, item.gp); }
           else {
-            tries++; firstTry = false; Sfx.bad();
+            /* Same forgiveness as the mixed type/speak panel: the first miss
+             * re-arms the mic and costs nothing, the second grades. Clearing
+             * `firstTry` here made the retry decorative — the card was already
+             * lost before the second attempt was spoken. */
+            tries++; Sfx.bad();
             hint.textContent = App.t("speak_close") + " (" + Math.round(best.g.score * 100) + " %)";
             if (tries >= 2 || isExam()) {
               finished = true;
@@ -667,11 +671,17 @@ const Session = (() => {
             listening = true;
             $("a-mic").classList.add("rec");
             hint.textContent = App.t("speak_listening");
+            /* `heardAlts` is what the RECOGNISER offered; `alts` (above) is the
+             * equally-correct wording ALT_WORDS allows. They used to share the
+             * name, and the inner one won: the はい/ええ rule silently stopped
+             * applying to anything spoken, because the fallback below was
+             * reading `.k`/`.r` off a plain string. Two different lists, two
+             * different names. */
             Voice.listen(
-              (alts) => {
+              (heardAlts) => {
                 listening = false; $("a-mic").classList.remove("rec");
                 let best = null;
-                for (const a of alts) {
+                for (const a of heardAlts) {
                   // a single word has no sentence to align against, so grade the
                   // reading directly; a full sentence gets the token-level matcher
                   // a single word has no sentence to align against, so grade the
@@ -696,7 +706,13 @@ const Session = (() => {
                   if (Voice.match(best.text, a.k, a.r)) { ok = true; alt = a; break; }
                 if (!ok && !spokenMiss && !isExam()) {
                   spokenMiss = 1;
-                  firstTry = false;
+                  /* FORGIVEN means forgiven. This used to clear `firstTry`,
+                   * which is the flag the verdict itself is built from
+                   * (`feedback(ok && firstTry, …)`) — so a mishearing followed
+                   * by a perfectly correct second attempt still came back as
+                   * "Pas tout à fait" and still cost the point in the SRS. The
+                   * retry was never a second chance, only a second reading.
+                   * A miss the app decided to forgive costs nothing. */
                   Sfx.bad();
                   hint.textContent = App.t("speak_retry");
                   return;                       // the mic is live again, and typing still works

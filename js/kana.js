@@ -134,6 +134,8 @@ const Kana = (() => {
     const v = r[r.length - 1];
     if (isVowel(v)) VOWEL_OF[k[k.length - 1]] = { a: "あ", i: "い", u: "う", e: "え", o: "お" }[v];
   }
+  /* The small vowels, and the full-size one each stands for. */
+  const SMALL_V = { "ぁ": "あ", "ぃ": "い", "ぅ": "う", "ぇ": "え", "ぉ": "お" };
 
   /* Comparison form: katakana → hiragana, the long mark spelled out, the three
    * mismatched particles folded, and everything that isn't a kana dropped.
@@ -178,6 +180,12 @@ const Kana = (() => {
     let out = "";
     for (const ch of k) {
       if (ch === "ー" || ch === "－") out += VOWEL_OF[out[out.length - 1]] || "";
+      /* A small vowel is a drawl when it repeats the vowel before it —
+       * 「えぇ」 is 「ええ」 held a beat longer, and recognisers write both.
+       * The test is deliberately "same vowel as the char before", which leaves
+       * every real small-vowel digraph alone: ふぁ is あ after an u-sound, てぃ
+       * is い after an e-sound, and neither matches. */
+      else if (SMALL_V[ch] && VOWEL_OF[out[out.length - 1]] === SMALL_V[ch]) out += SMALL_V[ch];
       else out += ch;
     }
     return out.replace(/[はへを]/g, (c) => ({ "は": "わ", "へ": "え", "を": "お" }[c]));
