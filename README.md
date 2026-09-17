@@ -671,3 +671,71 @@ The reported line itself — 「おはようございます昨日は雨でした
 this. `v380.js` asserts that first, so the kanji question is settled and stays settled; the
 red panel was the forgiveness bug. Run against the previous build, that harness reproduces the
 screenshot exactly, down to the transcript.
+
+## What's in v3.9 — the finite lists, and an exam on everything you've met
+
+Two features, and the first one is a new KIND of content rather than more of the
+existing kind.
+
+### 一覧 — the lists
+
+Grammar is open-ended. A list is not: 曜日 has seven members and will never have an
+eighth, and that changes what practising it should mean. **Thirteen ordered lists, 129
+members**: the numbers 1–10 and the tens, the hours, the minutes, the days of the week, the
+months, the days of the month, the money in a Japanese wallet, counting people, counting
+things, the parts of a day, the seasons, and one straight timeline from 去年 to 来年.
+
+Three rules follow from the shape, and they are the whole design:
+
+1. **A list lesson shows every member.** No sampling, no rotation — a list you half-know
+   is a list you don't know. A session is one card per member plus the closing card.
+2. **Every list has one canonical order**, smallest to largest or past to future, because
+   the last card of every list session is putting it back in that order. A list longer than
+   eight is asked about a contiguous window: thirteen tiles in a tray on a phone is a
+   dexterity test, not a memory one.
+3. Two question kinds alternate, each with two prompts: **say it** (from the characters, or
+   from the translation — answerable by voice or by typing) and **which one** (from hearing
+   it, or from reading the translation — answered on pills showing the characters). The
+   distractors are always the list's *own* members: telling 四時 from 七時 is the skill;
+   telling it from 学校 is not.
+
+**Irregularity is the point of half of them.** 四時 is よじ and never よんじ, 一日 is
+ついたち, 一分 is いっぷん but 二分 is にふん. Those members carry a ⚠ in the carnet — except
+on 日にち, where every member is irregular and a mark on every row marks nothing, so it is
+said once in the header instead.
+
+The schedule moves **once per session, not once per card**. Thirteen correct answers about
+one thing would otherwise take 曜日 from never-seen to due-in-180-days in a single sitting.
+
+**In the carnet**, a sixth tab: an index, and a screen per list. The characters stand on
+their own and **the reading and the translation are hidden until you ask for them** — a list
+you can only read with its furigana is a list you cannot read. Each member has its own 🔊,
+the list opens in its canonical order, and it can be shuffled and put back.
+
+### The vocabulary exam
+
+**25 words by default, and the size is yours** — 10, 25, 50, or everything.
+
+Its corpus is not "the curriculum" but **what you have actually met**: the words in
+sentences you have answered a card about, plus every member of every list you have
+practised. A word the journey has unlocked but never once shown you is not on it. Three ways
+of asking, rotating: **which translation** (four glosses, all of them words you have met —
+an unfamiliar gloss is a giveaway, not a distractor), **say or type it in Japanese** from the
+translation, and **read it aloud** from the characters.
+
+It grades like an exam — first attempt, no hints — and then shows you every word you missed
+with its reading and its meaning, which is the part worth reading. It hands out no stamp and
+demotes nothing: it is a measurement, and it records the run so the next score has something
+to be compared with. It lives in Renforcer.
+
+### And one bug found by looking
+
+The footer is shared chrome that outlives a card, and its buttons close over the card that
+made them. Every card answered by tapping an option clears it; the two new ones didn't, so a
+stale *passer* would have graded a card that had already left the screen. That was visible in
+a screenshot and in nothing else, and `v390.js` now asserts it for both.
+
+The carnet's tab row also had to absorb a sixth tab while keeping the v3.1 promise — one
+line, filling the width, no sideways scroll. The label now scales with the viewport, and the
+test measures that **nothing is ellipsised at 320, 360, 392 or 430 px** rather than trusting
+the rule.

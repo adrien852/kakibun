@@ -1,5 +1,5 @@
 /* Kakibun service worker — bump VERSION on every release (and APP_VERSION in js/app.js). */
-const VERSION = "3.8.0";
+const VERSION = "3.9.0";
 const CACHE = "kakibun-" + VERSION;
 
 const PRECACHE = [
@@ -15,6 +15,7 @@ const PRECACHE = [
   "data/sentences.js",
   "data/notes.js",
   "data/dialogues.js",
+  "data/lists.js",
   "js/conjugate.js",
   "js/parse.js",
   "js/kana.js",
@@ -28,6 +29,7 @@ const PRECACHE = [
   "js/wordpop.js",
   "js/session.js",
   "js/exam.js",
+  "js/vocabexam.js",
   "js/map.js",
   "js/strengthen.js",
   "js/library.js",

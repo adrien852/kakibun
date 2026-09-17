@@ -19,7 +19,10 @@ const Session = (() => {
   let events = [], firstTry = true, curParsed = null, curItem = null, curCtx = null;
   let opts = {}, results = [], curBad = [];
 
-  const isExam = () => !!opts.exam;
+  /* An exam is anything graded on the first attempt with no hints: a station
+   * exam, and now the vocabulary exam. The two end differently — one hands out
+   * a 駅スタンプ — but they ask their questions the same way. */
+  const isExam = () => !!opts.exam || !!opts.vocabExam;
 
   /* ---------- shared rendering ---------- */
   function dispOpts(over) {
@@ -107,7 +110,11 @@ const Session = (() => {
     cEl.classList.remove("bump"); void cEl.offsetWidth; cEl.classList.add("bump");
     if (ok) { Sfx.good(combo); score++; } else Sfx.bad();
     total++;
-    results.push({ gp: gpId, ok, sent: curItem.sent, kind: curItem.kind });
+    /* `item` and `w` ride along so a list result can name the members you
+       missed and the vocabulary exam can name the words — neither is knowable
+       from a grammar id. Both are undefined on every other kind of card. */
+    results.push({ gp: gpId, ok, sent: curItem.sent, kind: curItem.kind,
+                   item: curItem.item, w: curItem.w });
 
     const lang = App.lang();
     const sent = curItem.sent != null ? SENTENCES[curItem.sent] : null;
@@ -133,11 +140,11 @@ const Session = (() => {
     } else if (!isExam()) {
       const ev = Engine.record(gpId, ok, curCtx);
       Engine.noteSeen(curItem.sent);
-      if (ev === "mastered") {
+      const g = GRAMMAR.find(x => x.id === gpId);
+      if (ev === "mastered" && g) {
         events.push({ gp: gpId, kind: "mastered" });
         setTimeout(() => {
           Sfx.master();
-          const g = GRAMMAR.find(x => x.id === gpId);
           App.toastMaster(g.pat, App.t("master_toast"));
         }, 500);
       }
@@ -841,6 +848,245 @@ const Session = (() => {
     }
   }
 
+  /* ================= the finite lists (v3.9) =================
+   *
+   * A list member is a word, not a sentence, so it never goes through the DSL.
+   * This builds the same one-token stand-in the vocabulary card uses, which is
+   * what lets the feedback panel render it, speak it and make it tappable with
+   * no special cases anywhere downstream.
+   */
+  function listTok(it) {
+    const lex = { id: it.id, k: it.k || null, r: it.r, fr: it.fr, en: it.en,
+                  sk: it.sk || [], pos: "n" };
+    const tok = { type: "w", surfK: it.k || null, surfR: it.r, lex };
+    return { toks: [tok], surfK: it.k || it.r, surfR: it.r };
+  }
+  const listItem = (item) => LIST_BY_ID[item.list].items[item.item];
+
+  /* the list's name, and where you are in it — the fixed line above the card */
+  function listHead(item) {
+    const l = LIST_BY_ID[item.list];
+    return `<div class="list-eyebrow">${esc(l.jp)} · ${esc(l.name[App.lang()])}</div>`;
+  }
+
+  /* ---------- list: say it aloud ----------
+   * Prompted either by the characters (read this) or by the translation (say
+   * this in Japanese). Both are answerable by voice or by typing, so a device
+   * with no microphone loses nothing but the mode of answering. */
+  function showListSay(item) {
+    const it = listItem(item);
+    const parsed = listTok(it);
+    curParsed = parsed;
+    curCtx = { mode: "list_say" };
+    const lang = App.lang();
+    const byKanji = item.prompt === "k" && it.k;
+    const panel = answerPanel({ k: it.k || it.r, r: it.r, sk: it.sk || [] }, null, graded);
+    $("sess-body").innerHTML = `${kindLine("list_say")}
+      ${listHead(item)}
+      ${byKanji
+        ? `<div class="list-big">${esc(it.k)}</div>
+           <div class="prod-meta">${esc(App.t("list_say_k"))}</div>`
+        : `<div class="prod-fr">${esc(it[lang])}</div>
+           <div class="prod-meta">${esc(App.t("list_say_fr"))}</div>`}
+      ${panel.html}`;
+    const api = panel.bind();
+    foot(`<button class="btn-primary sm" id="a-check" disabled>${esc(App.t("check"))}</button>
+          <button class="btn-ghost" id="ls-skip" style="margin-top:9px">${esc(App.t("skip"))}</button>`);
+    $("a-check").addEventListener("click", api.submitTyped);
+    $("ls-skip").addEventListener("click", () => { Voice.cancel(); feedback(false, parsed, item.gp); });
+    function graded(r) {
+      Voice.cancel();
+      $("sess-foot").innerHTML = "";
+      if (!r.ok) firstTry = false;
+      feedback(r.ok && firstTry, parsed, item.gp, listNote(it) +
+        (r.how === "typed" ? `<div class="fb-expl">${esc(App.t("ans_you_typed"))} ${esc(r.text)}</div>` : ""));
+    }
+  }
+
+  /* ---------- list: pick the right one ----------
+   * The distractors are the list's OWN members, which is the only version of
+   * this question worth asking: telling 四時 from 七時 is the whole skill, and
+   * telling it from 学校 is not. */
+  function showListPick(item) {
+    const l = LIST_BY_ID[item.list];
+    const it = listItem(item);
+    const parsed = listTok(it);
+    curParsed = parsed;
+    curCtx = { mode: "list_pick" };
+    const lang = App.lang();
+    const others = l.items.filter(x => x.i !== it.i)
+      .sort(() => Math.random() - 0.5).slice(0, 3);
+    const options = [it, ...others].sort(() => Math.random() - 0.5);
+    const byAudio = item.prompt === "audio";
+    $("sess-body").innerHTML = `${kindLine("list_pick")}
+      ${listHead(item)}
+      ${byAudio
+        ? `<button class="audio-big" id="lp-play"><span class="ring"></span><span>🔊</span></button>
+           <div class="audio-hint">${esc(App.t("list_pick_audio"))}</div>`
+        : `<div class="prod-fr">${esc(it[lang])}</div>
+           <div class="prod-meta">${esc(App.t("list_pick_fr"))}</div>`}
+      <div class="opts pills" id="lp-opts">${options.map(o =>
+        `<button class="opt pill-opt" data-i="${o.i}">${esc(o.k || o.r)}</button>`).join("")}</div>`;
+    const say = () => Voice.speak(it.r);
+    if (byAudio) {
+      $("lp-play").addEventListener("click", say);
+      setTimeout(say, 450);
+    }
+    /* A card that answers itself owns no footer — and must SAY so. The footer
+       is shared chrome that outlives a card, so leaving the previous one's
+       buttons there is not merely untidy: their handlers still close over the
+       previous card, and tapping "passer" would grade a card already gone. */
+    foot("");
+    $("lp-opts").querySelectorAll(".opt").forEach(b => b.addEventListener("click", () => {
+      const ok = +b.dataset.i === it.i;
+      if (!ok && !isExam()) { b.classList.add("ko"); firstTry = false; Sfx.bad(); return; }
+      $("lp-opts").querySelectorAll(".opt").forEach(x => x.disabled = true);
+      b.classList.add(ok ? "good" : "ko");
+      feedback(ok && firstTry, parsed, item.gp, listNote(it));
+    }));
+  }
+
+  /* the irregular members are the reason the list exists — say so on the way past */
+  const listNote = (it) => it.odd
+    ? `<div class="fb-expl">⚠ ${esc(App.t("list_odd"))}</div>` : "";
+
+  /* ---------- list: put it back in order ----------
+   * Always the last card of a list session. A long list is asked about a
+   * contiguous window rather than all of it — see ORDER_MAX in engine.js. */
+  function showListOrder(item) {
+    const l = LIST_BY_ID[item.list];
+    const want = l.items.slice(item.from, item.from + item.n);
+    const parsed = listTok(want[0]);
+    curParsed = parsed;
+    curCtx = { mode: "list_order" };
+    const lang = App.lang();
+    const shuffled = want.map((it, n) => ({ it, n })).sort(() => Math.random() - 0.5);
+    const whole = item.n === l.items.length;
+    $("sess-body").innerHTML = `${kindLine("list_order")}
+      ${listHead(item)}
+      <div class="order-q">${esc(App.t(whole ? "list_order_all" : "list_order_part")
+        .replace("{n}", item.n))}</div>
+      <div class="order-how">${esc(l.ord[lang])}</div>
+      <div class="tray order-tray" id="o-answer"><span class="tray-hint" id="o-hint"
+        >${esc(App.t("list_order_hint"))}</span></div>
+      <div class="bank" id="o-bank">${shuffled.map(x =>
+        `<button class="tile pill-tile" data-n="${x.n}">${esc(x.it.k || x.it.r)}</button>`).join("")}</div>`;
+    const seq = [], bank = $("o-bank"), ans = $("o-answer");
+    const sync = () => {
+      $("o-check").disabled = seq.length !== want.length;
+      const h = $("o-hint"); if (h) h.style.display = seq.length ? "none" : "";
+    };
+    bank.querySelectorAll(".tile").forEach(b => b.addEventListener("click", () => {
+      if (b.classList.contains("used")) return;
+      Sfx.tap();
+      b.classList.add("used");
+      const clone = document.createElement("button");
+      clone.className = "tile pill-tile built";
+      clone.innerHTML = b.innerHTML;
+      clone.dataset.n = b.dataset.n;
+      clone.addEventListener("click", () => {
+        Sfx.tap();
+        ans.removeChild(clone);
+        bank.querySelector(`.tile[data-n="${clone.dataset.n}"]`).classList.remove("used");
+        seq.splice(seq.indexOf(clone), 1);
+        sync();
+      });
+      ans.appendChild(clone);
+      seq.push(clone);
+      sync();
+    }));
+    foot(`<button class="btn-primary" id="o-check" disabled>${esc(App.t("check"))}</button>`);
+    $("o-check").addEventListener("click", () => {
+      const built = seq.map(c => +c.dataset.n);
+      const ok = built.every((n, i) => n === i);
+      $("sess-foot").innerHTML = "";
+      bank.querySelectorAll(".tile").forEach(b => b.classList.add("used"));
+      /* the right answer, spelled out — being told "no" without being shown
+         the order teaches nothing, and this is the card that closes a list */
+      const right = `<div class="fb-order">${want.map(x =>
+        `<span class="fb-ord-i"><b>${esc(x.k || x.r)}</b><i>${esc(x.r)}</i></span>`).join("")}</div>`;
+      feedback(ok && firstTry, parsed, item.gp, right);
+    });
+  }
+
+  /* ================= the vocabulary exam (v3.9) =================
+   *
+   * The words carried here are already resolved — `item.w` is one entry from
+   * `Engine.metWords()`, which unifies a lexicon word and a list member into
+   * the same shape. Nothing below needs to know which it is looking at.
+   */
+  const examTok = (w) => {
+    const lex = { id: w.id, k: w.k || null, r: w.r, fr: w.fr, en: w.en,
+                  sk: w.sk || [], pos: w.pos || "n" };
+    return { toks: [{ type: "w", surfK: w.k || null, surfR: w.r, lex }],
+             surfK: w.k || w.r, surfR: w.r };
+  };
+
+  /* what does it mean? — Japanese on screen, four glosses */
+  function showVMean(item) {
+    const w = item.w;
+    const parsed = examTok(w);
+    curParsed = parsed;
+    curCtx = { mode: "v_mean" };
+    Engine.noteVocab(w.id);
+    const lang = App.lang();
+    const options = [w, ...(item.others || [])].sort(() => Math.random() - 0.5);
+    /* forceKanji: this is a reading test as much as a meaning test, so the
+       characters are shown bare — furigana here would answer half the question */
+    $("sess-body").innerHTML = `${kindLine("v_mean")}
+      <div class="list-big">${esc(w.k || w.r)}</div>
+      <div class="prod-meta">${esc(App.t("v_mean_q"))}</div>
+      <div class="opts" id="vm-opts">${options.map((o, n) =>
+        `<button class="opt" data-id="${esc(o.id)}">${esc(o[lang])}</button>`).join("")}</div>`;
+    foot("");
+    $("vm-opts").querySelectorAll(".opt").forEach(b => b.addEventListener("click", () => {
+      const ok = b.dataset.id === w.id;
+      if (!ok && !isExam()) { b.classList.add("ko"); firstTry = false; Sfx.bad(); return; }
+      $("vm-opts").querySelectorAll(".opt").forEach(x => x.disabled = true);
+      b.classList.add(ok ? "good" : "ko");
+      feedback(ok && firstTry, parsed, item.gp,
+        `<div class="fb-expl">${esc(w.r)}${w.k ? " · " + esc(w.k) : ""}</div>`);
+    }));
+  }
+
+  /* say it / write it — the translation is the prompt, Japanese is the answer */
+  function showVWrite(item) { vProduce(item, false); }
+  /* read it aloud — the characters are the prompt, the reading is the answer */
+  function showVSay(item) { vProduce(item, true); }
+
+  function vProduce(item, fromKanji) {
+    const w = item.w;
+    const parsed = examTok(w);
+    curParsed = parsed;
+    curCtx = { mode: fromKanji ? "v_say" : "v_write" };
+    Engine.noteVocab(w.id);
+    const lang = App.lang();
+    const byKanji = fromKanji && w.k;
+    const panel = answerPanel({ k: w.k || w.r, r: w.r, sk: w.sk || [] }, null, graded);
+    $("sess-body").innerHTML = `${kindLine(fromKanji ? "v_say" : "v_write")}
+      ${byKanji
+        ? `<div class="list-big">${esc(w.k)}</div>
+           <div class="prod-meta">${esc(App.t("list_say_k"))}</div>`
+        : `<div class="prod-fr">${esc(w[lang])}</div>
+           <div class="prod-meta">${esc(App.t(fromKanji ? "list_say_fr" : "prod_meta"))}</div>`}
+      ${panel.html}`;
+    const api = panel.bind();
+    foot(`<button class="btn-primary sm" id="a-check" disabled>${esc(App.t("check"))}</button>`
+         + (isExam() ? `<button class="btn-ghost" id="v-skip" style="margin-top:9px"
+              >${esc(App.t("skip"))}</button>` : ""));
+    $("a-check").addEventListener("click", api.submitTyped);
+    const sk = $("v-skip");
+    if (sk) sk.addEventListener("click", () => { Voice.cancel(); feedback(false, parsed, item.gp); });
+    function graded(r) {
+      Voice.cancel();
+      $("sess-foot").innerHTML = "";
+      if (!r.ok) firstTry = false;
+      feedback(r.ok && firstTry, parsed, item.gp,
+        `<div class="fb-expl">${esc(w[lang])}</div>` +
+        (r.how === "typed" ? `<div class="fb-expl">${esc(App.t("ans_you_typed"))} ${esc(r.text)}</div>` : ""));
+    }
+  }
+
   /* ================= dialogues (v2.0) =================
    * A sentence in isolation can be decoded. A line inside an exchange has to be
    * UNDERSTOOD — you need to know what was just said to know what fits next.
@@ -989,6 +1235,12 @@ const Session = (() => {
       case "vocab": return showVocab(it);
       case "reply": return showReply(it);
       case "roleplay": return showRoleplay(it);
+      case "list_say": return showListSay(it);
+      case "list_pick": return showListPick(it);
+      case "list_order": return showListOrder(it);
+      case "v_mean": return showVMean(it);
+      case "v_write": return showVWrite(it);
+      case "v_say": return showVSay(it);
       default: return showTiles(it, false);
     }
   }
@@ -997,7 +1249,9 @@ const Session = (() => {
 
   function finish() {
     $("sess-bar-fill").style.width = "100%";
-    if (isExam()) return Exam.finish(opts.exam.arc, results, opts);
+    if (opts.exam) return Exam.finish(opts.exam.arc, results, opts);
+    if (opts.vocabExam) return VocabExam.finish(results, opts);
+    if (opts.list) return finishList();
     Sfx.complete();
     const st = Engine.state();
     if (bestCombo > st.bestCombo) { st.bestCombo = bestCombo; Engine.save(); }
@@ -1047,6 +1301,51 @@ const Session = (() => {
     $("res-done").addEventListener("click", close);
   }
 
+  /* ---------- the end of a list session ----------
+   * One schedule move for the whole run (see recordList), and the members you
+   * missed listed out — which is the only part of a list result worth reading,
+   * because the next run will show all of them again anyway. */
+  function finishList() {
+    Sfx.complete();
+    const l = LIST_BY_ID[opts.list];
+    const lang = App.lang();
+    const out = Engine.recordList(opts.list, score, total);
+    Engine.noteSession();
+    if (out.passed) Sfx.master(); else Sfx.bad();
+
+    const missed = [];
+    for (const r of results) {
+      if (r.ok || r.item == null) continue;
+      const it = l.items[r.item];
+      if (it && missed.indexOf(it) < 0) missed.push(it);
+    }
+    /* a member written in kana IS its reading — printing it twice reads as a bug */
+    const missRows = missed.map(it =>
+      `<div class="res-row"><span>${esc(it.k || it.r)}${it.k
+          ? ` <b class="ord-r">${esc(it.r)}</b>` : ""}</span>
+        <b style="font-weight:400;color:rgba(255,255,255,.7)">${esc(it[lang])}</b></div>`).join("");
+
+    const p = Engine.listPoint(opts.list);
+    const days = Math.max(1, Math.round((p.due - Date.now()) / 86400000));
+
+    $("sess-kind").textContent = App.t("kind_result");
+    $("sess-body").innerHTML = `
+      <div class="res-score">${score}<small>/${total}</small></div>
+      <div class="res-line">${esc(out.passed ? App.t("list_res_good") : App.t("list_res_again"))}</div>
+      <div class="res-card">
+        <div class="res-row"><span>${esc(l.jp)} · ${esc(l.name[lang])}</span
+          ><b class="accent">${Math.round(score / Math.max(1, total) * 100)} %</b></div>
+        <div class="res-row"><span>${esc(App.t("next_review"))}</span
+          ><b>${esc(out.passed ? App.t("next_in_days").replace("{n}", days) : App.t("next_today"))}</b></div>
+        ${out.event === "mastered" ? `<div class="res-row"><span>🏅 ${esc(l.jp)}</span
+          ><b>${esc(App.t("res_mastered"))}</b></div>` : ""}
+      </div>
+      ${missRows ? `<div class="res-card"><div class="eyebrow">${esc(App.t("list_res_missed"))}</div>
+        ${missRows}</div>` : ""}`;
+    foot(`<button class="btn-primary finish" id="res-done">${esc(App.t("back"))}</button>`);
+    $("res-done").addEventListener("click", close);
+  }
+
   /* speak needs a mic + the setting on; listen needs a voice to speak WITH.
    * produce and vocab always work — the typed answer needs neither. */
   function fixModes(list) {
@@ -1057,6 +1356,11 @@ const Session = (() => {
       if (!mic && it.kind === "speak") return Object.assign({}, it, { kind: "produce" });
       if (!tts && (it.kind === "listen" || it.kind === "tiles"))
         return Object.assign({}, it, { kind: it.kind === "listen" ? "produce" : "tiles_read" });
+      /* a pick card prompted by sound needs something to make the sound with —
+         without a voice it asks from the translation instead, which is the same
+         question by a different door */
+      if (!tts && it.kind === "list_pick" && it.prompt === "audio")
+        return Object.assign({}, it, { prompt: "fr" });
       return it;
     });
   }
@@ -1111,6 +1415,20 @@ const Session = (() => {
     start(list, { exam: { arc: arcId }, back: "journey" });
   }
 
+  /* one list, every member, ending in order */
+  function listSession(listId, back) {
+    const list = Engine.buildListSession(listId);
+    if (!list.length) return;
+    start(list, { list: listId, back: back || "library" });
+  }
+
+  /* the vocabulary exam: n words met, three ways of asking */
+  function vocabExam(n, back) {
+    const list = VocabExam.build(n);
+    if (!list.length) { App.toast(App.t("vx_empty")); return; }
+    start(list, { vocabExam: { n: list.length }, back: back || "strengthen" });
+  }
+
   function close() {
     Voice.stop(); Voice.cancel();
     $("session").hidden = true;
@@ -1125,5 +1443,6 @@ const Session = (() => {
   }
 
   return { start, practice, strengthen, kanjiDebut, exam, readAloud, close, formPrompt,
+           listSession, vocabExam,
            _debug: () => ({ item: curItem, parsed: curParsed, idx, items, opts }) };
 })();

@@ -31,6 +31,37 @@ const Strengthen = (() => {
     </section>`;
   }
 
+  /* ---------- the finite lists ----------
+   * Ranked by what actually needs doing: the ones falling due first, then the
+   * ones never started, then the rest. A list you have mastered still appears —
+   * 曜日 is seven words, and being able to open it is worth more than tidiness.
+   */
+  function listsCard(lang) {
+    const now = Date.now();
+    const rows = LISTS.map(l => {
+      const p = Engine.listPoint(l.id);
+      const due = p.enc > 0 && p.due <= now;
+      const rank = due ? 0 : p.enc === 0 ? 1 : 2;
+      const state = due ? App.t("list_due") : p.enc === 0 ? App.t("list_new")
+                  : p.tier >= 1 ? "🏅" : App.t("list_ok");
+      return { rank, due: p.due, html: `<button class="weak-row list-go" data-list="${esc(l.id)}">
+          <span class="weak-top">
+            <span class="weak-label">${esc(l.jp)} <small>${esc(l.name[lang])}</small></span>
+            <span class="weak-acc ${due ? "acc-lo" : p.enc === 0 ? "acc-mid" : "acc-hi"}"
+              >${esc(state)}</span>
+          </span>
+        </button>` };
+    }).sort((a, b) => a.rank - b.rank || a.due - b.due).map(x => x.html).join("");
+    return `<section class="card">
+      <div class="mis-head">
+        <span class="eyebrow">${esc(App.t("str_lists"))}</span>
+        <span class="eyebrow-n">${Engine.listsStarted().length}/${LISTS.length}</span>
+      </div>
+      <div class="sess-sub" style="margin:4px 0 8px;line-height:1.5">${esc(App.t("str_lists_d"))}</div>
+      <div class="weak-list">${rows}</div>
+    </section>`;
+  }
+
   function render() {
     const lang = App.lang();
     const body = document.getElementById("str-body");
@@ -68,6 +99,8 @@ const Strengthen = (() => {
         ${nothing ? "" : `<button class="btn-primary sm" id="str-go" style="margin-top:12px"
           >${esc(App.t("str_drill_go"))}</button>`}
       </section>
+      ${VocabExam.cardHtml()}
+      ${listsCard(lang)}
       <div class="weak-groups">
         ${group(App.t("str_weak_prt"), prt)}
         ${group(App.t("str_weak_form"), form)}
@@ -76,6 +109,9 @@ const Strengthen = (() => {
           >${esc(App.t("str_no_data"))}</div></section>`}
       </div>`;
 
+    VocabExam.bind(body);
+    body.querySelectorAll("[data-list]").forEach(el =>
+      el.addEventListener("click", () => Session.listSession(el.dataset.list, "strengthen")));
     const go = document.getElementById("str-go");
     if (go) go.addEventListener("click", () => Session.strengthen());
     body.querySelectorAll("[data-gp]").forEach(el =>

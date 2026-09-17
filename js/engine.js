@@ -26,7 +26,7 @@ const Engine = (() => {
     points: {}, days: [], totals: { ex: 0, ok: 0 }, sentSeen: {}, bestCombo: 0,
     kakikana: null,
     stats: { prt: {}, form: {}, mode: {} },
-    stamps: {}, exams: [],
+    stamps: {}, exams: [], vexams: [],
     kanjiSeen: null, newKanji: [],
     vocabSeen: {},           // how often each word has been quizzed, for rotation
     missions: null           // today's three goals; regenerated when the date turns
@@ -38,6 +38,7 @@ const Engine = (() => {
     s.stats = Object.assign({ prt: {}, form: {}, mode: {} }, s.stats);
     if (!s.stamps) s.stamps = {};
     if (!s.exams) s.exams = [];
+    if (!s.vexams) s.vexams = [];
     if (s.kanjiSeen === undefined) s.kanjiSeen = null;
     if (!s.newKanji) s.newKanji = [];
     if (!s.vocabSeen) s.vocabSeen = {};
@@ -584,6 +585,158 @@ const Engine = (() => {
     return items.slice(0, head).concat(tail);
   }
 
+  /* ================= the finite lists (v3.9) =================
+   *
+   * A list behaves like one point, not like thirteen: 曜日 is a single thing
+   * you either know or don't. So each list gets ONE entry in `points`, under a
+   * prefix that can never collide with a grammar id, and inherits the whole SRS
+   * — boxes, due dates, tiers — for free. Nothing that walks GRAMMAR will ever
+   * see these, which is exactly right: a list is not a stop on the journey.
+   */
+  const LIST_PT = (id) => "L:" + id;
+  const listPoint = (id) => point(LIST_PT(id));
+  const listsStarted = () => LISTS.filter(l => listPoint(l.id).enc > 0);
+  const listsDue = () => LISTS.filter(l => {
+    const p = listPoint(l.id);
+    return p.enc > 0 && p.due <= Date.now();
+  });
+
+  /* How many members the closing card asks you to put back in order. Thirteen
+   * tiles in a tray on a 390 px phone is a dexterity test, not a memory one, so
+   * a long list is asked about a window of consecutive members instead — which
+   * is also how anyone actually recalls a long list: from a neighbour. */
+  const ORDER_MAX = 8;
+
+  /* Every member, exactly once, and the list back in order to close.
+   *
+   * The "exactly once" is the whole design: a list you half-know is a list you
+   * don't know, so there is no sampling and no rotation here. The two question
+   * kinds alternate so the same faculty is never tested twice in a row, and
+   * each carries two possible prompts, picked per card. */
+  function buildListSession(listId) {
+    load();
+    const l = LIST_BY_ID[listId];
+    if (!l) return [];
+    const n = l.items.length;
+    const order = l.items.map((_, i) => i).sort(() => Math.random() - 0.5);
+    const sayFirst = Math.random() < 0.5;
+    const items = order.map((i, slot) => {
+      const it = l.items[i];
+      const say = (slot % 2 === 0) === sayFirst;
+      /* A member with no kanji has nothing to read aloud FROM, so its speaking
+       * card is always prompted by the translation. */
+      const prompt = say
+        ? (it.k && slot % 4 < 2 ? "k" : "fr")
+        : (slot % 4 < 2 ? "audio" : "fr");
+      return { kind: say ? "list_say" : "list_pick", list: listId, item: i,
+               gp: LIST_PT(listId), prompt, free: true };
+    });
+    /* the window is contiguous, so what is being tested is the ORDER and not
+     * which members happen to have been drawn */
+    const win = Math.min(ORDER_MAX, n);
+    const from = Math.floor(Math.random() * (n - win + 1));
+    items.push({ kind: "list_order", list: listId, gp: LIST_PT(listId),
+                 from, n: win, free: true, last: true });
+    return items;
+  }
+
+  /* One SRS move per session, not one per card.
+   *
+   * Every other card type stands alone, so recording each one is right. A list
+   * session is thirteen questions about ONE thing, and letting each correct
+   * answer climb a box would take 曜日 from "never seen" to "due in 180 days"
+   * inside a single sitting. So the cards are `free` — they score and feed the
+   * stats — and the list's schedule moves exactly once, here, on the result. */
+  const LIST_PASS = 0.8, LIST_MASTER_RUNS = 3, LIST_MASTER_DAYS = 2;
+  function recordList(listId, score, total) {
+    const p = listPoint(listId);
+    const passed = total > 0 && score / total >= LIST_PASS;
+    const d = today();
+    let event = null;
+    p.enc++;
+    if (passed) {
+      p.ok++;
+      p.reps++;
+      p.box = Math.min(p.box + 1, BOX_DAYS.length - 1);
+      if (!p.days.includes(d)) p.days.push(d);
+      if (p.tier === 0 && p.reps >= LIST_MASTER_RUNS && p.days.length >= LIST_MASTER_DAYS) {
+        p.tier = 1; p.mastered = true; p.box = Math.max(p.box, MASTER_BOX); event = "mastered";
+      }
+    } else {
+      p.ko++;
+      p.box = 1;
+      if (p.tier > 0) { p.tier = 0; p.mastered = false; p.reps = Math.max(0, LIST_MASTER_RUNS - 1); }
+    }
+    p.due = Date.now() + BOX_DAYS[p.box] * DAY;
+    if (!state.days.includes(d)) state.days.push(d);
+    save();
+    return { passed, event, tier: p.tier };
+  }
+
+  /* ---------- vocabulary actually met (v3.9) ----------
+   * Not "everything unlocked" — `vocabPool` already means that, and it happily
+   * offers a word from a sentence never once put in front of you. This is the
+   * narrower, honest set: words from sentences you have ACTUALLY answered a
+   * card about (`sentSeen`), plus every member of every list you have
+   * practised (a list session shows all of them, so one run means all met).
+   *
+   * Returned in one shape whatever the source, because the exam that reads
+   * this should not care where a word came from:
+   *   { id, k, r, fr, en, sk[], src }
+   */
+  let metCache = null;
+  function metWords() {
+    const seenKey = Object.keys(state.sentSeen || {}).length + "/" +
+                    LISTS.filter(l => listPoint(l.id).enc > 0).length;
+    if (metCache && metCache.key === seenKey) return metCache.list;
+    const out = [], have = new Set();
+    const push = (o) => { if (!have.has(o.id)) { have.add(o.id); out.push(o); } };
+    for (const idx in state.sentSeen) {
+      const s = SENTENCES[idx];
+      if (!s) continue;
+      for (const tok of Parse.sentence(s.dsl).toks) {
+        if (tok.type !== "w" || !tok.lex || !tok.lex.id) continue;
+        const e = LEXICON[tok.lex.id];
+        // the copula and bare numerals make poor prompts, exactly as in vocabPool
+        if (!e || !e.fr || e.pos === "cop" || e.pos === "num") continue;
+        push({ id: "w:" + e.id, k: e.k || null, r: e.r, fr: e.fr, en: e.en,
+               sk: e.sk ? [].concat(e.sk) : [], src: "word", pos: e.pos });
+      }
+    }
+    for (const l of LISTS) {
+      if (listPoint(l.id).enc === 0) continue;
+      for (const it of l.items)
+        push({ id: "l:" + it.id, k: it.k || null, r: it.r, fr: it.fr, en: it.en,
+               sk: it.sk ? [].concat(it.sk) : [], src: "list", list: l.id });
+    }
+    metCache = { key: seenKey, list: out };
+    return out;
+  }
+
+  /* Least-recently-quizzed first, so a long exam doesn't ask the same
+   * twenty-five words every time. Same rotation rule as the vocabulary card. */
+  function pickMet(count) {
+    const pool = metWords();
+    if (!pool.length) return [];
+    const seen = state.vocabSeen || (state.vocabSeen = {});
+    return pool.slice()
+      .sort((a, b) => (seen[a.id] || 0) - (seen[b.id] || 0) || Math.random() - 0.5)
+      .slice(0, Math.max(1, count || 25));
+  }
+
+  /* The vocabulary exam's own history. Deliberately separate from `exams`:
+   * that list drives stamps and demotions, and this one drives nothing at all —
+   * a vocabulary score exists to be compared with the last one. */
+  function recordVocabExam(score, total) {
+    if (!state.vexams) state.vexams = [];
+    state.vexams.push({ date: today(), score, total });
+    if (state.vexams.length > MAX_EXAMS) state.vexams = state.vexams.slice(-MAX_EXAMS);
+    const d = today();
+    if (!state.days.includes(d)) state.days.push(d);
+    save();
+  }
+  const lastVocabExam = () => (state.vexams || []).slice(-1)[0] || null;
+
   /* Weakest-first drill for the Renforcer tab. */
   function buildStrengthen(n) {
     load();
@@ -809,6 +962,9 @@ const Engine = (() => {
            duePoints, learningDue, sentencesFor, sentKanji, pickSentence, sentenceCaps,
            readingCandidates, spotCandidates, kanjiFillCandidates,
            listenChoices, vocabPool, pickVocab, noteVocab,
+           listPoint, listsStarted, listsDue, buildListSession, recordList,
+           metWords, pickMet, LIST_PT, ORDER_MAX,
+           recordVocabExam, lastVocabExam,
            dialoguesUpTo, dialoguesFor, replyChoices, replyLine, replyLines,
            kanjiDistractors, learnedKanjiPool, modeFor, buildSession, buildStrengthen, buildKanjiDebut,
            record, recordStats, noteSeen, masteryProgress, streak, stats,

@@ -1,6 +1,6 @@
 /* Kakibun — 帳面 le carnet.
  *
- * Five tabs over one row component. Everything here is browsing, never
+ * Six tabs over one row component. Everything here is browsing, never
  * scoring: tapping 🔊 speaks, tapping a row opens what it is, and nothing
  * touches the review schedule.
  *
@@ -12,10 +12,13 @@ const Library = (() => {
   const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
   const $ = (id) => document.getElementById(id);
 
-  const TABS = ["grammaire", "phrases", "kanji", "dialogues", "mots"];
+  const TABS = ["grammaire", "phrases", "kanji", "dialogues", "mots", "listes"];
   const SEARCHABLE = { phrases: 1, dialogues: 1, mots: 1 };
   let tab = "grammaire";
-  let openGp = null, openDlg = null, openKanji = null;
+  let openGp = null, openDlg = null, openKanji = null, openList = null;
+  /* the list screen's own two toggles and its order, kept per list so
+   * stepping out and back in does not undo what you set up */
+  let listShow = { r: false, tr: false }, listShuffle = null;
   let query = "";                       // cleared whenever the tab changes
 
   /* ---------- search ----------
@@ -88,13 +91,14 @@ const Library = (() => {
         >${esc(App.t("lib_tab_" + id))}</button>`).join("");
     $("lib-tabs").querySelectorAll(".lib-tab").forEach(el =>
       el.addEventListener("click", () => {
-        tab = el.dataset.tab; openGp = openDlg = openKanji = null; query = "";
+        tab = el.dataset.tab; openGp = openDlg = openKanji = openList = null; query = "";
         Sfx.tap(); render();
       }));
 
     const lang = App.lang();
     const body = $("lib-body");
-    if (openDlg !== null) body.innerHTML = dialogueDetail(openDlg, lang);
+    if (openList) body.innerHTML = listDetail(openList, lang);
+    else if (openDlg !== null) body.innerHTML = dialogueDetail(openDlg, lang);
     else if (openKanji) body.innerHTML = kanjiDetail(openKanji, lang);
     else if (openGp) body.innerHTML = grammarDetail(openGp, lang);
     else if (SEARCHABLE[tab]) {
@@ -113,6 +117,7 @@ const Library = (() => {
       bindSearch(lang);
     }
     else if (tab === "grammaire") body.innerHTML = grammarList(lang);
+    else if (tab === "listes") body.innerHTML = listIndex(lang);
     else body.innerHTML = kanjiGrid();
     bind();
     // every drill-down starts at the top — a v1.2 feature, and typing in the
@@ -341,6 +346,91 @@ const Library = (() => {
     return rows || noMatch();
   }
 
+  /* ---------- 一覧 the lists ----------
+   * The index says how much of each list you have got through; the screen for
+   * one list is the list itself, whole, in its own order.
+   *
+   * What is hidden by default is the point: the characters are on their own,
+   * and the reading and the translation come back only when you ask for them.
+   * A list you can only read WITH its furigana is a list you cannot read.
+   */
+  function listIndex(lang) {
+    const rows = LISTS.map(l => {
+      const p = Engine.listPoint(l.id);
+      const tag = p.tier >= 1 ? "🏅" : p.enc > 0 ? String(p.enc) : "–";
+      return row(esc(l.jp), `${l.name[lang]} · ${App.t("list_n_items").replace("{n}", l.items.length)}`,
+                 tag, `data-list="${esc(l.id)}"`);
+    }).join("");
+    return `<section class="card"><div class="empty-note">${esc(App.t("list_index_d"))}</div></section>`
+      + rows;
+  }
+
+  function listDetail(listId, lang) {
+    const l = LIST_BY_ID[listId];
+    const order = listShuffle || l.items.map((_, i) => i);
+    /* The ⚠ marks the members that break the pattern. On 日にち EVERY member
+       breaks it, and a mark on every row marks nothing — so there it is said
+       once, in the header, and the rows stay clean. */
+    const allOdd = l.items.every(x => x.odd);
+    const rows = order.map(i => {
+      const it = l.items[i];
+      return `<div class="list-row">
+        <span class="list-n">${i + 1}</span>
+        <span class="list-main">
+          <span class="list-k">${esc(it.k || it.r)}${it.odd && !allOdd
+            ? `<i class="list-odd" title="${esc(App.t("list_odd"))}">⚠</i>` : ""}</span>
+          <span class="list-r" ${listShow.r ? "" : "hidden"}>${esc(it.r)}</span>
+          <span class="list-tr" ${listShow.tr ? "" : "hidden"}>${esc(it[lang])}</span>
+        </span>
+        <button class="say-btn" data-say="${esc(it.r)}">🔊</button>
+      </div>`;
+    }).join("");
+    const p = Engine.listPoint(listId);
+    return `<button class="city-back" style="align-self:flex-start">← ${esc(App.t("lib_tab_listes"))}</button>
+      <section class="card" style="margin-top:10px">
+        <div class="eyebrow">${esc(l.jp)}${p.tier >= 1 ? " · 🏅" : ""}</div>
+        <div class="sess-sub">${esc(l.name[lang])}</div>
+        <div class="stamp-note" style="margin-top:8px">${esc(l.ord[lang])}</div>
+        ${allOdd ? `<div class="stamp-note" style="margin-top:6px;color:var(--accent)"
+          >⚠ ${esc(App.t("list_all_odd"))}</div>` : ""}
+        <div class="list-tools">
+          <button class="list-tool ${listShow.r ? "on" : ""}" id="lt-r">${esc(App.t("list_show_r"))}</button>
+          <button class="list-tool ${listShow.tr ? "on" : ""}" id="lt-tr">${esc(App.t("list_show_tr"))}</button>
+          <button class="list-tool" id="lt-shuffle">${esc(listShuffle
+            ? App.t("list_order_back") : App.t("list_shuffle"))}</button>
+        </div>
+        <button class="btn-primary sm" id="lt-go" style="margin-top:12px"
+          >${esc(App.t("list_practise").replace("{n}", l.items.length))}</button>
+      </section>
+      <div class="list-sheet">${rows}</div>`;
+  }
+
+  function bindListDetail(body) {
+    if (!openList) return;
+    const l = LIST_BY_ID[openList];
+    const r = body.querySelector("#lt-r"), tr = body.querySelector("#lt-tr");
+    const sh = body.querySelector("#lt-shuffle"), go = body.querySelector("#lt-go");
+    /* the two reveals only toggle spans that are already rendered, so they
+       never rebuild the sheet — the scroll position stays where you left it */
+    if (r) r.addEventListener("click", () => {
+      listShow.r = !listShow.r;
+      r.classList.toggle("on", listShow.r);
+      body.querySelectorAll(".list-r").forEach(el => el.hidden = !listShow.r);
+      Sfx.tap();
+    });
+    if (tr) tr.addEventListener("click", () => {
+      listShow.tr = !listShow.tr;
+      tr.classList.toggle("on", listShow.tr);
+      body.querySelectorAll(".list-tr").forEach(el => el.hidden = !listShow.tr);
+      Sfx.tap();
+    });
+    if (sh) sh.addEventListener("click", () => {
+      listShuffle = listShuffle ? null : l.items.map((_, i) => i).sort(() => Math.random() - 0.5);
+      Sfx.tap(); render();
+    });
+    if (go) go.addEventListener("click", () => Session.listSession(openList, "library"));
+  }
+
   const empty = (msg) => `<section class="card"><div class="empty-note">${esc(msg)}</div></section>`;
   /* an empty result is not the same as an empty tab: say which */
   const noMatch = () => empty(App.t("lib_no_match").replace("{q}", query.trim()));
@@ -372,9 +462,14 @@ const Library = (() => {
       el.addEventListener("click", () => { openDlg = +el.dataset.dlg; Sfx.tap(); render(); }));
     body.querySelectorAll("[data-kanji]").forEach(el =>
       el.addEventListener("click", () => { openKanji = el.dataset.kanji; Sfx.tap(); render(); }));
+    body.querySelectorAll("[data-list]").forEach(el =>
+      el.addEventListener("click", () => {
+        openList = el.dataset.list; listShuffle = null; Sfx.tap(); render();
+      }));
+    bindListDetail(body);
     const back = body.querySelector(".city-back");
     if (back) back.addEventListener("click", () => {
-      openGp = openDlg = openKanji = null; Sfx.tap(); render();
+      openGp = openDlg = openKanji = openList = null; Sfx.tap(); render();
     });
   }
 
