@@ -739,3 +739,43 @@ The carnet's tab row also had to absorb a sixth tab while keeping the v3.1 promi
 line, filling the width, no sideways scroll. The label now scales with the viewport, and the
 test measures that **nothing is ellipsised at 320, 360, 392 or 430 px** rather than trusting
 the rule.
+
+## What's in v3.10 — typing accepts what speaking accepts
+
+Reported as *"writing the answer doesn't seem to work"*, on a list card prompting for
+**dix**. The answer typed was じゅ — genuinely short of じゅう, and genuinely wrong. But
+looking at why raised a question that had a much worse answer: **what exactly does the typed
+field accept?**
+
+**Only the reading.** The spoken path had always compared against the characters, the
+reading, *and* every spelling in `sk`. The typed path compared against the reading and
+nothing else. So:
+
+- **十 typed on a Japanese keyboard was marked wrong** — and a Japanese keyboard produces
+  十, not じゅう.
+- **私 typed for わたし was marked wrong**, on the vocabulary card, since v1.8. This was never
+  a list problem; it was every typed card in the app.
+- **じっぷん passed aloud and failed typed**, though the corpus lists it as a spelling of
+  十分.
+
+The two now accept the same set: the reading in any rōmaji spelling, the characters, and the
+listed alternatives. Digits come along with them, because 10時 is how Japanese actually
+writes it. What typing does **not** get is the recogniser's forgiveness: `Voice.match`
+tolerates one wrong character and is deliberately not used here — a microphone mishears, a
+keyboard doesn't, and you can see what you typed. じゅ for じゅう is still wrong, and so is
+きゅう.
+
+**The bare numerals now take either of their two live readings** — 四 as よん *or* し, 七 as
+なな *or* しち, 九 as きゅう *or* く. The counters built on them stay strict, because that is
+the whole point of those lists: 四時 is よじ and never よんじ, 四月 is しがつ and never
+よんがつ.
+
+**Rōmaji with a macron is accepted**, since the app's own placeholder spells it *rōmaji*.
+ā ī ū ē are the doubled vowel; ō is tried as both おう and おお, because both exist
+(ありがとう, おおきい).
+
+And a word no longer gets a full stop. The feedback panel was printing 「十。」 — a sentence's
+punctuation on a card whose subject is one word.
+
+`v3100.js` types into the real field and reads the verdict off the real panel. Run against
+v3.9 it fails ten of its eighteen checks.

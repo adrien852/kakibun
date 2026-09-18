@@ -52,8 +52,27 @@ const Kana = (() => {
   const isCons = (c) => /[a-z]/.test(c) && !isVowel(c);
 
   /* rōmaji (or already-kana, which passes through) → hiragana */
+  /* The app writes "rōmaji" with a macron on its own placeholder, so someone
+   * will type one back. A macron is a doubled vowel: ō is the one that is
+   * ambiguous (おう in ありがとう, おお in おおきい), so it yields BOTH and the
+   * caller tries each. Everything else has a single expansion. */
+  const MACRON = { "\u0101": ["aa"], "\u012b": ["ii"], "\u016b": ["uu"], "\u0113": ["ee"],
+                   "\u014d": ["ou", "oo"] };
+  function deMacron(input) {
+    const s = String(input || "").toLowerCase();
+    if (!/[\u0101\u012b\u016b\u0113\u014d]/.test(s)) return [s];
+    let out = [""];
+    for (const ch of s) {
+      const exp = MACRON[ch] || [ch];
+      const next = [];
+      for (const sofar of out) for (const e of exp) next.push(sofar + e);
+      out = next.slice(0, 8);                       // ō twice is already plenty
+    }
+    return out;
+  }
+
   function toKana(input) {
-    const s = String(input || "").toLowerCase().replace(/\s+/g, "");
+    const s = deMacron(input)[0].replace(/\s+/g, "");
     let out = "", i = 0;
     while (i < s.length) {
       const c = s[i];
@@ -86,7 +105,7 @@ const Kana = (() => {
   }
 
   /* true if the string looks like someone typed rōmaji rather than kana */
-  const isRomaji = (s) => /[a-z]/i.test(String(s || ""));
+  const isRomaji = (s) => /[a-z\u0101\u012b\u016b\u0113\u014d]/i.test(String(s || ""));
 
   /* Every reading the typed rōmaji could reasonably mean.
    *
@@ -199,10 +218,13 @@ const Kana = (() => {
   function same(a, b) {
     const want = norm(b);
     if (!want) return false;
-    const tries = isRomaji(a) ? variants(a) : [a];
+    /* every de-macroned spelling, and every ん-boundary reading of each */
+    const tries = isRomaji(a)
+      ? deMacron(a).reduce((acc, x) => acc.concat(variants(x)), [])
+      : [a];
     return tries.some(t => norm(t) === want);
   }
 
-  return { toKana, variants, isRomaji, norm, speech, same, numerals, kanjiNum };
+  return { toKana, variants, isRomaji, norm, speech, same, numerals, kanjiNum, deMacron };
 })();
 if (typeof module !== "undefined") module.exports = { Kana };

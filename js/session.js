@@ -69,11 +69,15 @@ const Session = (() => {
     return `<span class="${cls}" data-i="${i}">${inner}</span>`;
   }
 
+  /* `word: true` for a card whose subject is a WORD rather than a sentence —
+     the vocabulary card, a list member, an exam word. 「十。」 is not how a
+     number is written down, and the full stop read as part of the answer. */
   function jpHtml(parsed, o) {
     o = o || {};
     const body = parsed.toks.map((t, i) => tokHtml(t, i, o)).join("");
-    if (o.plain) return body + "。";
-    return `<div class="jp">${body}<span class="tok">。</span></div>`;
+    const stop = o.word ? "" : "。";
+    if (o.plain) return body + stop;
+    return `<div class="jp">${body}${stop ? `<span class="tok">${stop}</span>` : ""}</div>`;
   }
 
   function bindTaps(container, parsed, gpId) {
@@ -129,7 +133,11 @@ const Session = (() => {
       ${curBad.length && ok ? `<div class="fb-expl">${esc(App.t("speak_watch"))} <b>${
           curBad.map(i => esc(parsed.toks[i].surfK != null ? parsed.toks[i].surfK : parsed.toks[i].surfR)).join(" · ")}</b></div>` : ""}
       ${isExam() ? "" : (extraHtml || "")}`;
-    box.querySelector(".fb-jp").innerHTML = jpHtml(parsed, { bad: curBad, plain: true });
+    /* a word card has no sentence behind it — see jpHtml */
+    const isWord = !!curItem && curItem.sent == null &&
+      (curItem.word != null || curItem.w != null || curItem.list != null);
+    box.querySelector(".fb-jp").innerHTML =
+      jpHtml(parsed, { bad: curBad, plain: true, word: isWord });
     $("sess-body").appendChild(box);
     bindTaps(box, parsed, gpId);
 
@@ -653,13 +661,39 @@ const Session = (() => {
         inp.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); submitTyped(); } });
         setTimeout(() => { if (!o.noFocus) inp.focus(); }, 250);
 
+        /* Everything a typed answer is allowed to be.
+         *
+         * Speaking has always accepted the characters, the reading and every
+         * spelling in `sk`; typing accepted the READING and nothing else. So a
+         * Japanese keyboard — which produces 十, not じゅう — was answering
+         * correctly and being marked wrong, and じゅっぷん / じっぷん passed
+         * aloud but failed typed. The two now accept the same set.
+         *
+         * `Kana.speech` does the folding on both sides: katakana → hiragana,
+         * long marks spelled out, digits to kanji numerals (so 10時 typed on a
+         * Japanese keyboard is the same answer as 十時, which is how Japanese
+         * actually writes it). What it does NOT do is forgive a missing mora —
+         * `Voice.match` would, and deliberately isn't used here: a recogniser
+         * mishears, a keyboard doesn't, and you can see what you typed. */
+        const fold = (s) => { try { return Kana.speech(String(s || "")); } catch (e) { return ""; } };
+        const forms = [target.r, target.k].concat(target.sk || [])
+          .filter(Boolean).map(fold).filter(Boolean);
+        function typedOk(v) {
+          if (Kana.same(v, target.r)) return true;          // rōmaji, every spelling of it
+          const said = fold(Kana.isRomaji(v) ? Kana.toKana(v) : v);
+          return !!said && forms.indexOf(said) >= 0;
+        }
+
         function submitTyped() {
           if (done) return;
           const v = inp.value.trim();
           if (!v) return;
           done = true;
-          let ok = Kana.same(v, target.r), alt = null;
-          if (!ok) for (const a of alts) if (Kana.same(v, a.r)) { ok = true; alt = a; break; }
+          let ok = typedOk(v), alt = null;
+          if (!ok) for (const a of alts)
+            if (Kana.same(v, a.r) || fold(Kana.isRomaji(v) ? Kana.toKana(v) : v) === fold(a.k)) {
+              ok = true; alt = a; break;
+            }
           onGraded({ ok, alt, how: "typed", text: Kana.toKana(v) });
         }
         function markUndone() { done = false; }

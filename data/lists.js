@@ -39,14 +39,16 @@ const LISTS = (() => {
       I("一", "いち", "un", "one"),
       I("二", "に", "deux", "two"),
       I("三", "さん", "trois", "three"),
-      /* both readings are alive: よん is the everyday one, し survives in
-         fixed compounds (四月, 四時 keeps よ). Taught as よん, hears both. */
-      I("四", "よん", "quatre", "four", { sk: ["4"], odd: true }),
+      /* Both readings are alive for the BARE numeral: よん is the everyday one,
+         し the older one that survives in counting aloud and in compounds. The
+         list teaches よん and accepts either — unlike 四月/四時, which have
+         exactly one reading each and are strict about it. */
+      I("四", "よん", "quatre", "four", { sk: ["4", "し"], odd: true }),
       I("五", "ご", "cinq", "five"),
       I("六", "ろく", "six", "six"),
-      I("七", "なな", "sept", "seven", { sk: ["7"], odd: true }),
+      I("七", "なな", "sept", "seven", { sk: ["7", "しち"], odd: true }),
       I("八", "はち", "huit", "eight"),
-      I("九", "きゅう", "neuf", "nine", { sk: ["9"], odd: true }),
+      I("九", "きゅう", "neuf", "nine", { sk: ["9", "く"], odd: true }),
       I("十", "じゅう", "dix", "ten")
     ]),
 
@@ -174,7 +176,7 @@ const LISTS = (() => {
       I("一人", "ひとり", "une personne", "one person", { sk: ["1人"], odd: true }),
       I("二人", "ふたり", "deux personnes", "two people", { sk: ["2人"], odd: true }),
       I("三人", "さんにん", "trois personnes", "three people", { sk: ["3人"] }),
-      I("四人", "よにん", "quatre personnes", "four people", { sk: ["4人"], odd: true }),
+      I("四人", "よにん", "quatre personnes", "four people", { sk: ["4人", "よんにん"], odd: true }),
       I("五人", "ごにん", "cinq personnes", "five people", { sk: ["5人"] }),
       I("六人", "ろくにん", "six personnes", "six people", { sk: ["6人"] }),
       I("七人", "ななにん", "sept personnes", "seven people", { sk: ["7人", "しちにん"] }),
